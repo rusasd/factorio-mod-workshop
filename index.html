@@ -3,9 +3,26 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Мастерская модов Factorio — онлайн</title>
-<meta name="description" content="Создавайте моды для Factorio без программирования: предметы, рецепты, правка врагов и турелей, свои спрайты — и готовый zip на выходе.">
+<title>Создать мод для Factorio без программирования — онлайн-конструктор модов</title>
+<meta name="description" content="Бесплатный онлайн-конструктор модов для Factorio: свои предметы и рецепты, изменение врагов, турелей и машин, свои спрайты — без кода. На выходе готовый zip-мод. На русском, для Factorio 1.1 и 2.x.">
+<link rel="canonical" href="https://rusasd.github.io/factorio-mod-workshop/">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://rusasd.github.io/factorio-mod-workshop/">
+<meta property="og:title" content="Мастерская модов Factorio — мод без кода, zip на выходе">
+<meta property="og:description" content="Онлайн-конструктор модов для Factorio: предметы, рецепты, правка врагов и турелей, свои спрайты. Бесплатно, без программирования, на русском.">
+<meta property="og:image" content="https://rusasd.github.io/factorio-mod-workshop/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:locale" content="ru_RU">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='80' font-size='80'>⚙</text></svg>">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"Мастерская модов Factorio",
+"url":"https://rusasd.github.io/factorio-mod-workshop/",
+"description":"Онлайн-конструктор модов для Factorio без программирования: предметы, рецепты, правка врагов и турелей, свои спрайты, готовый zip-мод.",
+"applicationCategory":"DeveloperApplication","operatingSystem":"Any (Web)",
+"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"inLanguage":"ru"}
+</script>
 <style>
 :root{
   --bg:#17140f; --panel:#221d15; --panel2:#2b251b; --line:#3d3526;
@@ -126,7 +143,27 @@ kbd{background:#171310;border:1px solid var(--line);border-radius:5px;padding:1p
   <div id="main">
     <div id="modhead"></div>
     <div id="tabs"></div>
-    <div id="content"></div>
+    <div id="content"><div class="card" id="landing" style="max-width:780px;margin:24px auto">
+      <h3>Создать мод для Factorio — без программирования</h3>
+      <p>«Мастерская модов» — бесплатный онлайн-конструктор модов для Factorio. Всё делается в формах
+      прямо в браузере, а на выходе вы получаете готовый zip-файл мода, который останется положить
+      в папку модов игры.</p>
+      <p style="margin-top:8px"><b>Что умеет конструктор:</b></p>
+      <ul style="margin:6px 0 6px 22px;line-height:1.7">
+        <li>новые предметы, сундуки и рецепты — со своими названиями на русском и английском;</li>
+        <li>изменение всего, что есть в игре: здоровье и урон врагов (кусак), характеристики турелей,
+            машин, печей и любых других объектов — с учётом установленных вами модов;</li>
+        <li>клоны существующих объектов — свой босс-кусака или усиленная турель;</li>
+        <li>свои спрайты и иконки (PNG) прямо в архиве мода;</li>
+        <li>общие настройки: скорость бега, размер инвентаря, размер стопок предметов;</li>
+        <li>поддержка Factorio 1.1 и 2.x, готовые переводы ru + en.</li>
+      </ul>
+      <p>Проекты хранятся в вашем браузере и никуда не отправляются. Мод создаётся за пару минут:
+      создайте мод, наполните содержимым, скачайте zip — и положите его в
+      <b>%appdata%\Factorio\mods</b> (в игре: Моды → Открыть папку модов).</p>
+      <div style="margin-top:14px"><button class="primary" onclick="newModForm()">+ Создать мод</button></div>
+      <div class="hint" style="margin-top:12px">Уже есть проект? «Импорт проекта…» слева внизу.</div>
+    </div></div>
   </div>
 </div>
 
@@ -222,6 +259,7 @@ log('FMODDONE')`;
 
 /* ============================================================ базовое */
 const $ = id => document.getElementById(id);
+const LANDING = document.getElementById('content').innerHTML;
 const esc = s => String(s??'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function toast(msg, err){ const t=document.createElement('div'); t.className='toast'+(err?' err':''); t.textContent=msg;
   $('toasts').appendChild(t); setTimeout(()=>t.remove(), err?6000:3500); }
@@ -458,11 +496,7 @@ function renderDumpChip(){
 function renderMod(){
   const head=$('modhead'), tabs=$('tabs'), c=$('content');
   const p=cur();
-  if(!p){ head.innerHTML=''; tabs.innerHTML='';
-    c.innerHTML=`<div class="empty">Создайте мод слева — и соберите его без единой строчки кода.<br><br>
-      <button class="primary" onclick="newModForm()">+ Создать мод</button>
-      <div class="hint" style="margin-top:18px">Уже есть проект? «Импорт проекта…» слева внизу.</div></div>`;
-    return; }
+  if(!p){ head.innerHTML=''; tabs.innerHTML=''; c.innerHTML=LANDING; return; }
   head.innerHTML=`
     <span class="title">${esc(p.title||p.name)}</span>
     <span class="sub">${esc(p.name)} · v${esc(p.version)} · Factorio ${esc(p.fver)}</span>

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://rusasd.github.io/factorio-mod-workshop/sitemap.xml
