@@ -3,7 +3,7 @@
 **Создавайте моды для Factorio без программирования — прямо в браузере.**
 Make Factorio mods with zero coding — right in your browser.
 
-🔗 **Сайт / Live site:** включите GitHub Pages в настройках репозитория (Settings → Pages)
+🔗 **Сайт / Live site:** https://rusasd.github.io/factorio-mod-workshop/
 
 ## Возможности
 
