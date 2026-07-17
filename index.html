@@ -158,7 +158,8 @@ kbd{background:#171310;border:1px solid var(--line);border-radius:5px;padding:1p
       в папку модов игры.</p>
       <p style="margin-top:8px"><b>Что умеет конструктор:</b></p>
       <ul style="margin:6px 0 6px 22px;line-height:1.7">
-        <li>новые предметы, сундуки и рецепты — со своими названиями на русском и английском;</li>
+        <li>новые предметы, сундуки, руды (со своим цветом и спрайтом) и рецепты — со своими
+            названиями на русском и английском;</li>
         <li>изменение всего, что есть в игре: здоровье и урон врагов (кусак), характеристики турелей,
             машин, печей и любых других объектов — каталог базовой игры уже встроен, а каталог своей
             игры с модами можно загрузить;</li>
@@ -203,6 +204,7 @@ const BASE_ITEMS = [
  ['low-density-structure','Легковесная структура','Low density structure'],['rocket-fuel','Ракетное топливо','Rocket fuel'],
  ['pipe','Труба','Pipe'],['repair-pack','Ремкомплект','Repair pack'],['landfill','Насыпь','Landfill']];
 const BASE_CHESTS = [['wooden-chest','Деревянный сундук','Wooden chest'],['iron-chest','Железный сундук','Iron chest'],['steel-chest','Стальной сундук','Steel chest']];
+const BASE_ORES = [['iron-ore','Железная руда','Iron ore'],['copper-ore','Медная руда','Copper ore'],['coal','Уголь','Coal'],['stone','Камень','Stone'],['uranium-ore','Урановая руда','Uranium ore']];
 const CATRU = {
  'item':'Предметы','ammo':'Боеприпасы','gun':'Оружие','armor':'Броня','capsule':'Капсулы/гранаты','module':'Модули',
  'tool':'Научные пакеты','fluid':'Жидкости','recipe':'Рецепты','technology':'Технологии',
@@ -296,7 +298,7 @@ const LANDING_EN = `<div class="card" style="max-width:780px;margin:24px auto">
   right in your browser, and you get a ready-to-use mod zip — just drop it into the game's mods folder.</p>
   <p style="margin-top:8px"><b>What it can do:</b></p>
   <ul style="margin:6px 0 6px 22px;line-height:1.7">
-    <li>new items, chests and recipes — with names in English and Russian;</li>
+    <li>new items, chests, ores (with custom map color and sprite) and recipes — with names in English and Russian;</li>
     <li>change anything that exists in the game: biter health and damage, turret, vehicle and furnace
         stats — the base-game catalog is built in, and you can upload the catalog of your own modded game;</li>
     <li>clones of existing objects — your own boss biter or a beefed-up turret;</li>
@@ -316,13 +318,13 @@ function slug(s){ let out=''; for(const ch of String(s).toLowerCase()){
   if(ch in TRANSLIT) out+=TRANSLIT[ch]; else if(/[a-z0-9]/.test(ch)) out+=ch; else out+='-'; }
   out = out.replace(/-+/g,'-').replace(/^-|-$/g,''); return out||'thing'; }
 function cur(){ return S.projects.find(p=>p.id===S.sel); }
-function uniqueId(base){ const M=cur().model; const ids=[...M.items,...M.chests,...M.recipes,...M.clones].map(x=>x.id);
+function uniqueId(base){ const M=cur().model; const ids=[...M.items,...M.chests,...M.recipes,...M.clones,...(M.ores||[])].map(x=>x.id);
   let id=base,i=2; while(ids.includes(id)) id=base+'-'+(i++); return id; }
 function locName(name){ if(LANG!=='ru') return null;
   for(const sec of ['entity-name','item-name','fluid-name','equipment-name','recipe-name','technology-name']){
     const v=LOC[sec+'.'+name]; if(v) return v; } return null; }
 function labelOf(id){ const M=cur().model;
-  for(const x of [...M.items,...M.chests,...M.clones]) if(x.id===id) return x.ru;
+  for(const x of [...M.items,...M.chests,...M.clones,...(M.ores||[])]) if(x.id===id) return x.ru;
   for(const b of BASE_ITEMS) if(b[0]===id) return L(b[1],b[2]);
   for(const b of BASE_CHESTS) if(b[0]===id) return L(b[1],b[2]);
   return locName(id)||id; }
@@ -341,7 +343,7 @@ function loadProjects(){
   try{ return JSON.parse(localStorage.getItem('fmw.projects'))||[]; }catch(e){ return []; }
 }
 function save(cb){ persist(); if(cb) cb(); }
-function defModel(){ return { items:[], recipes:[], chests:[], clones:[], overrides:[], tweaks:{run:100,inv:0,stack:1} }; }
+function defModel(){ return { items:[], recipes:[], chests:[], ores:[], clones:[], overrides:[], tweaks:{run:100,inv:0,stack:1} }; }
 
 function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open('fmw',1);
   r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
@@ -352,6 +354,10 @@ async function idbGet(k){ const d=await idb(); return new Promise((res,rej)=>{ c
 
 /* ============================================================ генератор Lua */
 function luaNum(n){ const v=Math.round((+n)*1e6)/1e6; return String(v); }
+function hexToRgb01(h){
+  h=String(h||'#b06a2a'); if(h[0]==='#') h=h.slice(1);
+  return { r:parseInt(h.slice(0,2),16)/255, g:parseInt(h.slice(2,4),16)/255, b:parseInt(h.slice(4,6),16)/255 };
+}
 function escLua(s){ return String(s??'').replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/\r/g,'').replace(/\n/g,'\\n'); }
 const PATH_RX=/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/;
 function fmtVal(p){
@@ -361,6 +367,12 @@ function fmtVal(p){
   if(p.vtype==='ings'||p.vtype==='results'){
     const parts=(p.value||[]).map(g=>'{type="'+(g.ftype==='fluid'?'fluid':'item')+'", name="'+escLua(g.item)+'", amount='+luaNum(g.count)+'}');
     return '{ '+parts.join(', ')+' }';
+  }
+  if(p.vtype==='sheet'){
+    return '{ sheet = { filename = "'+escLua(p.value.file)+'", size = '+luaNum(p.value.size)+', frame_count = 1, variation_count = 1 } }';
+  }
+  if(p.vtype==='numarr'){
+    return '{ '+(p.value||[]).map(luaNum).join(', ')+' }';
   }
   return '"'+escLua(p.value)+'"';
 }
@@ -378,6 +390,26 @@ function genDataLua(p){
       '  p.localised_name = nil',
       '  p.localised_description = nil',
       '  data:extend({p})','end','');
+  }
+  for(const o of (M.ores||[])){
+    const c=hexToRgb01(o.color);
+    out.push('do',
+      '  local ent = table.deepcopy(data.raw["resource"]["'+o.base+'"])',
+      '  ent.name = "'+o.id+'"',
+      '  ent.localised_name = nil',
+      '  ent.minable.result = "'+o.id+'"',
+      '  ent.minable.results = nil',
+      '  ent.minable.mining_time = '+luaNum(o.time||1),
+      '  ent.map_color = {r='+luaNum(c.r)+', g='+luaNum(c.g)+', b='+luaNum(c.b)+'}');
+    if(o.sprite&&o.sprite.file){
+      out.push('  ent.stages = { sheet = { filename = "__'+p.name+'__/graphics/'+o.sprite.file+'", size = '+luaNum(o.sprite.size)+', frame_count = 1, variation_count = 1 } }',
+               '  ent.stage_counts = {0}');
+    }
+    out.push('  local it = table.deepcopy(data.raw["item"]["'+o.base+'"])',
+      '  it.name = "'+o.id+'"',
+      '  it.localised_name = nil',
+      '  it.localised_description = nil',
+      '  data:extend({ent, it})','end','');
   }
   for(const ch of M.chests){
     const rec = v2
@@ -429,10 +461,10 @@ function genFixes(p){
   return '-- Правки игры из конструктора (применяются после загрузки всех модов).\n\n'+T.join('\n')+'\n';
 }
 function enLabel(p,id){ const M=p.model;
-  for(const x of [...M.items,...M.chests,...M.clones]) if(x.id===id) return x.en||x.ru;
+  for(const x of [...M.items,...M.chests,...M.clones,...(M.ores||[])]) if(x.id===id) return x.en||x.ru;
   return id.replace(/-/g,' '); }
 function ruLabelG(p,id){ const M=p.model;
-  for(const x of [...M.items,...M.chests,...M.clones]) if(x.id===id) return x.ru;
+  for(const x of [...M.items,...M.chests,...M.clones,...(M.ores||[])]) if(x.id===id) return x.ru;
   for(const b of BASE_ITEMS) if(b[0]===id) return b[1];
   for(const b of BASE_CHESTS) if(b[0]===id) return b[1];
   for(const sec of ['entity-name','item-name','fluid-name','equipment-name','recipe-name','technology-name']){
@@ -443,6 +475,7 @@ function genLocale(p,lang){
   const pick=(x)=> lang==='ru'? x.ru : (x.en||x.ru);
   for(const it of M.items) item.push(it.id+'='+pick(it));
   for(const ch of M.chests){ item.push(ch.id+'='+pick(ch)); ent.push(ch.id+'='+pick(ch)); }
+  for(const o of (M.ores||[])){ item.push(o.id+'='+pick(o)); ent.push(o.id+'='+pick(o)); }
   for(const cl of M.clones){ item.push(cl.id+'='+pick(cl)); ent.push(cl.id+'='+pick(cl)); }
   for(const rc of M.recipes) rec.push(rc.id+'='+(lang==='ru'? ruLabelG(p,rc.result) : enLabel(p,rc.result)));
   const C=[];
@@ -625,6 +658,7 @@ async function importProject(inp){
   try{
     const p=JSON.parse(await f.text());
     if(!p.name || !p.model){ toast(L('Это не файл проекта Мастерской.','This is not a Workshop project file.'), true); return; }
+    if(!p.model.ores) p.model.ores=[];
     p.id='p'+Date.now();
     while(S.projects.some(x=>x.name===p.name)) p.name=p.name+'-copy';
     S.projects.push(p); S.sel=p.id; save(render);
@@ -661,7 +695,8 @@ function renderContent(){
   h+=`<div class="card"><h3>${L('Новое в моде','New in this mod')} <div class="spacer"></div>
       <button class="small" onclick="itemForm()">+ ${L('Предмет','Item')}</button>
       <button class="small" onclick="chestForm()">+ ${L('Сундук','Chest')}</button>
-      <button class="small" onclick="recipeForm()">+ ${L('Рецепт','Recipe')}</button></h3>`;
+      <button class="small" onclick="recipeForm()">+ ${L('Рецепт','Recipe')}</button>
+      <button class="small" onclick="oreForm()">+ ${L('Руда','Ore')}</button></h3>`;
   const rows=[];
   M.items.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">${L('предмет','item')}</span><div class="grow">${esc(x.ru)}
      <div class="sub">${L('стопка','stack')} ${x.stack}, ${L('выглядит как','looks like')} ${esc(labelOf(x.base))}</div></div>
@@ -669,6 +704,11 @@ function renderContent(){
   M.chests.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">${L('сундук','chest')}</span><div class="grow">${esc(x.ru)}
      <div class="sub">${x.slots} ${L('ячеек, на основе:','slots, based on:')} ${esc(labelOf(x.base))}</div></div>
      <button class="small" onclick="chestForm(${i})">${L('Изменить','Edit')}</button><button class="small danger" onclick="delEntry('chests',${i})">✕</button></div>`));
+  (M.ores||[]).forEach((x,i)=>rows.push(`<div class="row"><span class="badge">${L('руда','ore')}</span>
+     <span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:${esc(x.color||'#b06a2a')}"></span>
+     <div class="grow">${esc(x.ru)}
+     <div class="sub">${L('на основе','based on')} ${esc(labelOf(x.base))}, ${L('добыча','mining')} ${x.time||1} ${L('сек','s')}${x.sprite?', '+L('свой спрайт','custom sprite'):''}</div></div>
+     <button class="small" onclick="oreForm(${i})">${L('Изменить','Edit')}</button><button class="small danger" onclick="delEntry('ores',${i})">✕</button></div>`));
   M.recipes.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">${L('рецепт','recipe')}</span><div class="grow">${esc(labelOf(x.result))} ×${x.count}
      <div class="sub">${L('из:','from:')} ${x.ingredients.map(g=>esc(labelOf(g.item))+' ×'+g.count).join(' + ')}; ${x.time} ${L('сек','s')}</div></div>
      <button class="small" onclick="recipeForm(${i})">${L('Изменить','Edit')}</button><button class="small danger" onclick="delEntry('recipes',${i})">✕</button></div>`));
@@ -702,7 +742,7 @@ function saveTweaks(){
 }
 function delEntry(kind,i){
   const M=cur().model; const x=M[kind][i];
-  if(kind==='items'||kind==='chests'||kind==='clones'){
+  if(kind==='items'||kind==='chests'||kind==='clones'||kind==='ores'){
     for(const r of M.recipes){
       if(r.result===x.id || r.ingredients.some(g=>g.item===x.id)){
         toast(L('Сначала удалите рецепт, где это используется.','Delete the recipe that uses it first.'), true); return;
@@ -714,7 +754,7 @@ function delEntry(kind,i){
 function choiceOptions(withEmpty, selId){
   const M=cur().model;
   let o=withEmpty? `<option value="-">${L('— не используется —','— not used —')}</option>`:'';
-  const all=[...M.items.map(x=>[x.id,x.ru]),...M.chests.map(x=>[x.id,x.ru]),...BASE_ITEMS.map(b=>[b[0],L(b[1],b[2])])];
+  const all=[...M.items.map(x=>[x.id,x.ru]),...M.chests.map(x=>[x.id,x.ru]),...(M.ores||[]).map(x=>[x.id,x.ru]),...BASE_ITEMS.map(b=>[b[0],L(b[1],b[2])])];
   for(const [id,lbl] of all) o+=`<option value="${esc(id)}"${id===selId?' selected':''}>${esc(lbl)}</option>`;
   return o;
 }
@@ -754,6 +794,44 @@ function chestSave(i){
     ru:ru||en, en, base:$('fBase').value, slots:+$('fSlots').value||96 };
   if(i>=0) M.chests[i]=obj; else M.chests.push(obj);
   closeModal(); save(renderContent);
+}
+function oreForm(i){
+  const x=i!==undefined? (cur().model.ores||[])[i]:null;
+  openModal(`<h3>${x?L('Изменить руду','Edit ore'):L('Новая руда','New ore')}</h3><div class="formgrid">
+    <label>${L('Название (по-русски)','Name (Russian)')}</label><input id="fRu" value="${esc(x?.ru||'')}">
+    <label>${L('Название (English)','Name (English)')}</label><input id="fEn" value="${esc(x?.en||'')}">
+    <label>${L('На основе','Based on')}</label><select id="fBase">${BASE_ORES.map(b=>`<option value="${b[0]}"${(x?.base||'iron-ore')===b[0]?' selected':''}>${esc(L(b[1],b[2]))}</option>`).join('')}</select>
+    <label>${L('Время добычи (сек)','Mining time (s)')}</label><input id="fTime" type="number" min="0.1" step="any" value="${x?.time||1}" style="width:110px">
+    <label>${L('Цвет на карте','Map color')}</label><input id="fColor" type="color" value="${esc(x?.color||'#b06a2a')}" style="width:60px;height:34px;padding:2px">
+    <label>${L('Свой спрайт (PNG)','Custom sprite (PNG)')}</label><div><input type="file" id="fSprite" accept="image/png">
+      <div class="hint" style="margin-top:4px">${x?.sprite? L('Сейчас: свой спрайт. Новый файл заменит его; пустое поле — оставить как есть.','Currently: custom sprite. A new file replaces it; leave empty to keep.') : L('Необязательно. Квадратная картинка (например 64×64) — так будет выглядеть залежь на земле.','Optional. A square image (e.g. 64×64) — this is how the deposit will look on the ground.')}</div></div>
+    </div><div class="hint">${L('Руда появится на новых картах в тех же местах, что и базовая. Иконка предмета — как у базовой руды. Чтобы руда переплавлялась — добавьте рецепт (ваша руда → пластина).',
+      'The ore spawns on new maps in the same places as the base ore. Item icon comes from the base ore. To make it smeltable — add a recipe (your ore → plate).')}</div>
+    <div class="btns"><button onclick="closeModal()">${L('Отмена','Cancel')}</button><button class="primary" onclick="oreSave(${i??-1})">${L('Сохранить','Save')}</button></div>`);
+}
+async function oreSave(i){
+  const M=cur().model; M.ores=M.ores||[];
+  const ru=$('fRu').value.trim(); const en=$('fEn').value.trim();
+  if(!ru&&!en){ toast(L('Введите название.','Enter a name.'),true); return; }
+  const obj={ id:i>=0? M.ores[i].id : uniqueId(cur().name.toLowerCase()+'-'+slug(en||ru)),
+    ru:ru||en, en, base:$('fBase').value, time:+$('fTime').value||1, color:$('fColor').value,
+    sprite: i>=0? (M.ores[i].sprite||null) : null };
+  const f=$('fSprite').files[0];
+  if(f){
+    const buf=await f.arrayBuffer();
+    const b64=toB64(buf);
+    const size=await new Promise(res=>{ const img=new Image();
+      img.onload=()=>res(img.naturalWidth===img.naturalHeight? img.naturalWidth : 0);
+      img.onerror=()=>res(0);
+      img.src=URL.createObjectURL(f); });
+    if(!size){ toast(L('Спрайт должен быть квадратным PNG (например 64×64).','The sprite must be a square PNG (e.g. 64×64).'),true); return; }
+    const clean=(obj.id+'-ground.png').replace(/[^A-Za-z0-9._-]/g,'-');
+    addSprite(clean,b64);
+    obj.sprite={file:clean,size};
+  }
+  if(i>=0) M.ores[i]=obj; else M.ores.push(obj);
+  closeModal(); save(renderContent);
+  toast(L('Руда сохранена в мод.','Ore saved to the mod.'));
 }
 function recipeForm(i){
   const x=i!==undefined? cur().model.recipes[i]:null;
@@ -970,7 +1048,10 @@ const FRIENDLY=[
  {cats:['character'], path:'running_speed', ru:'Скорость бега', en:'Running speed'},
  {cats:['character'], path:'inventory_size', ru:'Размер инвентаря', en:'Inventory size'},
  {cats:['character'], path:'reach_distance', ru:'Дальность руки', en:'Reach distance'},
- {cats:['character'], path:'build_distance', ru:'Дальность строительства', en:'Build distance'}
+ {cats:['character'], path:'build_distance', ru:'Дальность строительства', en:'Build distance'},
+ {cats:['resource'], path:'minable.mining_time', ru:'Время добычи (сек)', en:'Mining time (s)'},
+ {cats:['resource'], path:'minable.result', ru:'Что добывается (внутр. имя предмета)', en:'Mined item (internal name)'},
+ {cats:['resource'], path:'infinite', ru:'Бесконечная (как нефть)', en:'Infinite (like oil)'}
 ];
 const PROPDICT={
  max_health:'здоровье', movement_speed:'скорость передвижения', running_speed:'скорость бега',
@@ -997,7 +1078,9 @@ const PROPDICT={
  ingredients:'составляющие', results:'результаты', attack_speed:'скорость атаки',
  reach_distance:'дальность руки', build_distance:'дальность строительства',
  max_energy_usage:'макс. потребление', module_specification:'модули', module_slots:'слоты модулей',
- pollution:'загрязнение', emissions_per_minute:'выбросы в минуту', water_reflection:'отражение в воде'
+ pollution:'загрязнение', emissions_per_minute:'выбросы в минуту', water_reflection:'отражение в воде',
+ map_color:'цвет на карте', autoplace:'распределение по карте', stages:'спрайты залежи',
+ stage_counts:'пороги стадий истощения', infinite:'бесконечная', mining_particle:'частицы при добыче'
 };
 function getByPath(o,path){
   let cur=o;
@@ -1206,6 +1289,7 @@ function renderProtoPanel(){
   right.innerHTML=`
     <div class="card"><h3>${esc(ru||S.proto)} <span class="badge">${esc(S.cat)} / ${esc(S.proto)}</span><div class="spacer"></div>
       ${hasIcon?`<button class="small" onclick="$('iconFile').click()">${L('Заменить иконку (PNG)','Replace icon (PNG)')}</button><input type="file" id="iconFile" accept="image/png" style="display:none" onchange="replaceIcon(this)">`:''}
+      ${S.cat==='resource'?`<button class="small" onclick="$('oreSpriteFile').click()">${L('Заменить спрайт руды (PNG)','Replace ore sprite (PNG)')}</button><input type="file" id="oreSpriteFile" accept="image/png" style="display:none" onchange="replaceOreSprite(this)">`:''}
       <button class="small" onclick="cloneForm()">${L('Создать копию...','Make a copy...')}</button></h3>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
         <button class="small${!isClone?' primary':''}" onclick='setTarget(null)'>${L('менять оригинал','edit the original')}</button>${cloneBtns}</div>
@@ -1266,6 +1350,23 @@ async function replaceIcon(inp){
     applyProp('icons',null,'nil');
     applyProp('icon_mipmaps',null,'nil');
     toast(L('Иконка заменена — файл добавлен в спрайты мода.','Icon replaced — the file was added to the mod sprites.'));
+  };
+  img.src=URL.createObjectURL(f);
+  inp.value='';
+}
+async function replaceOreSprite(inp){
+  const f=inp.files[0]; if(!f) return;
+  const buf=await f.arrayBuffer();
+  const b64=toB64(buf);
+  const img=new Image();
+  img.onload=()=>{
+    if(img.naturalWidth!==img.naturalHeight){ toast(L('Картинка должна быть квадратной (например 64×64).','The image must be square (e.g. 64×64).'),true); return; }
+    const clean=(S.proto+'-ground.png').replace(/[^A-Za-z0-9._-]/g,'-');
+    addSprite(clean,b64);
+    const path='__'+cur().name+'__/graphics/'+clean;
+    applyProp('stages',{file:path,size:img.naturalWidth},'sheet');
+    applyProp('stage_counts',[0],'numarr');
+    toast(L('Спрайт руды заменён — файл добавлен в спрайты мода.','Ore sprite replaced — the file was added to the mod sprites.'));
   };
   img.src=URL.createObjectURL(f);
   inp.value='';
@@ -1407,6 +1508,8 @@ function runSelftest(){
       model:defModel(), sprites:[{file:'x.png', b64:'iVBORw0KGgo='}] };
     p.model.items.push({id:'selftest-mod-plita',ru:'Суперпластина',en:'Super plate',base:'iron-plate',stack:200});
     p.model.chests.push({id:'selftest-mod-sunduk',ru:'Большой сундук',en:'',base:'steel-chest',slots:96});
+    p.model.ores.push({id:'selftest-mod-ruda',ru:'Синяя руда',en:'Blue ore',base:'iron-ore',time:2,color:'#3080ff',
+      sprite:{file:'blue-ore.png',size:64}});
     p.model.recipes.push({id:'selftest-mod-r-plita',result:'selftest-mod-plita',count:2,time:1.5,
       ingredients:[{item:'iron-plate',count:5},{item:'coal',count:1}]});
     p.model.clones.push({id:'selftest-mod-boss',category:'unit',base:'big-biter',ru:'Босс',en:'Boss',
@@ -1427,6 +1530,7 @@ function runSelftest(){
 /* ============================================================ старт */
 (async function(){
   S.projects=loadProjects();
+  for(const p of S.projects){ if(p.model && !p.model.ores) p.model.ores=[]; }
   if(S.projects.length) S.sel=S.projects[0].id;
   applyLang();
   try{ const d=await idbGet('dump'); if(d){ S.dump=d; S.dumpKind='custom'; renderDumpChip(); if(S.tab==='game'&&cur()) renderMod(); } }catch(e){}
