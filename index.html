@@ -966,8 +966,6 @@ const FRIENDLY=[
  {cats:['item','ammo','capsule','module','tool'], path:'stack_size', ru:'Размер стопки', en:'Stack size'},
  {cats:['item'], path:'fuel_value', ru:'Топливная ценность (напр. 4MJ)', en:'Fuel value (e.g. 4MJ)'},
  {cats:['ammo'], path:'magazine_size', ru:'Размер магазина', en:'Magazine size'},
- {cats:['recipe'], path:'energy_required', ru:'Время крафта (сек)', en:'Craft time (s)'},
- {cats:['recipe'], path:'enabled', ru:'Доступен с начала игры', en:'Enabled from start'},
  {cats:['container','logistic-container'], path:'inventory_size', ru:'Ячеек внутри', en:'Slots inside'},
  {cats:['character'], path:'running_speed', ru:'Скорость бега', en:'Running speed'},
  {cats:['character'], path:'inventory_size', ru:'Размер инвентаря', en:'Inventory size'},
@@ -1074,11 +1072,17 @@ function ensureRecipeDraft(proto){
   if(S.recipeDraft) return;
   const parsed=recipeParts(proto);
   const si=findProp('ingredients'), sr=findProp('results');
+  const st=findProp('energy_required'), se=findProp('enabled');
+  const src=proto.normal||proto;
   S.recipeDraft={
     ings: JSON.parse(JSON.stringify(si&&si.vtype==='ings'? si.value : parsed.ings)),
-    results: JSON.parse(JSON.stringify(sr&&sr.vtype==='results'? sr.value : parsed.results))
+    results: JSON.parse(JSON.stringify(sr&&sr.vtype==='results'? sr.value : parsed.results)),
+    time: st? st.value : (src.energy_required!=null? src.energy_required : 0.5),
+    enabled: se? !!se.value : (src.enabled!==false)
   };
 }
+function rcpTime(inp){ const v=parseFloat(inp.value); if(!isNaN(v)&&v>0) S.recipeDraft.time=v; }
+function rcpEnabled(inp){ S.recipeDraft.enabled=inp.checked; }
 function buildRecipeCard(proto){
   ensureItemDatalist();
   ensureRecipeDraft(proto);
@@ -1096,6 +1100,10 @@ function buildRecipeCard(proto){
   return `<div class="card"><h3>${L('Состав рецепта','Recipe contents')}${staged?' <span class="changedmark">●</span>':''}<div class="spacer"></div>
       ${staged?`<button class="small" onclick="resetRecipe()">${L('Сбросить изменения','Reset changes')}</button>`:''}
       <button class="small primary" onclick="saveRecipe()">${L('Сохранить рецепт','Save recipe')}</button></h3>
+    <div class="frow"><div class="flabel">${L('Время крафта (сек)','Craft time (s)')}</div>
+      <input type="number" min="0.1" step="any" value="${d.time}" style="width:110px" onchange="rcpTime(this)"></div>
+    <div class="frow"><div class="flabel">${L('Доступен с начала игры','Enabled from start')}</div>
+      <input type="checkbox" ${d.enabled?'checked':''} onchange="rcpEnabled(this)"></div>
     <div class="hint" style="margin-top:0">${L('Ингредиенты (что тратится):','Ingredients (what is consumed):')}</div>
     ${d.ings.map((g,i)=>row(g,i,'ings')).join('')}
     <div style="margin:4px 0 8px"><button class="small" onclick="rcpAdd('ings')">+ ${L('ингредиент','ingredient')}</button></div>
@@ -1103,7 +1111,7 @@ function buildRecipeCard(proto){
     ${d.results.map((g,i)=>row(g,i,'results')).join('')}
     <div style="margin:4px 0 8px"><button class="small" onclick="rcpAdd('results')">+ ${L('результат','result')}</button></div>
     ${special?`<div class="hint">⚠ ${L('У этого рецепта вероятностные результаты — сохранение упростит их до фиксированных количеств.','This recipe has probabilistic results — saving will simplify them to fixed amounts.')}</div>`:''}
-    <div class="hint">${L('Начните вводить название — появятся подсказки. Изменения попадут в мод после «Сохранить рецепт». Время крафта — в «Основных свойствах» ниже.','Start typing a name for suggestions. Changes are stored after "Save recipe". Craft time is under Main properties below.')}</div>
+    <div class="hint">${L('Начните вводить название — появятся подсказки. Изменения попадут в мод после «Сохранить рецепт».','Start typing a name for suggestions. Changes are stored after "Save recipe".')}</div>
   </div>`;
 }
 function rcpChanged(kind,i,field,inp){
@@ -1133,6 +1141,8 @@ function saveRecipe(){
     if(ex){ ex.value=value; ex.vtype=vtype; } else ps.push({path,value,vtype}); };
   up('ingredients', JSON.parse(JSON.stringify(d.ings)), 'ings');
   up('results', JSON.parse(JSON.stringify(d.results)), 'results');
+  up('energy_required', d.time, 'number');
+  up('enabled', !!d.enabled, 'boolean');
   up('result', null, 'nil');
   up('result_count', null, 'nil');
   if(proto&&proto.normal!==undefined) up('normal', null, 'nil');
