@@ -109,6 +109,11 @@ header h1 span{color:var(--dim);font-weight:400;font-size:13px}
 .propchip{display:flex;gap:8px;align-items:center;background:#33270f;border:1px solid #6b4d13;border-radius:8px;padding:5px 10px;margin:3px 0;font:12px Consolas,monospace;flex-wrap:wrap}
 .propchip .p{color:var(--acc2);word-break:break-all}
 .badge{font-size:11px;border:1px solid var(--line);border-radius:6px;padding:1px 7px;color:var(--dim)}
+.frow{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:8px;flex-wrap:wrap}
+.frow:nth-child(even){background:#00000022}
+.flabel{width:300px;min-width:190px}
+.fwas{font-size:12px;color:var(--dim)}
+.keynote{color:var(--dim);font-size:11px}
 
 #modal-bg{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:50}
 #modal{background:var(--panel);border:1px solid var(--acc);border-radius:14px;padding:20px 22px;min-width:min(440px,95vw);max-width:min(680px,95vw);max-height:85vh;overflow:auto;box-shadow:0 20px 60px #000c}
@@ -917,9 +922,116 @@ function targetProps(){
   return cl? cl.props:[];
 }
 function openProto(cat,name,target){
-  S.proto=name; S.cat=cat;
+  S.proto=name; S.cat=cat; S.advOpen=false;
   S.target=target||{kind:'override',category:cat,name:name};
   renderProtoList(); renderProtoPanel();
+}
+
+/* ---------- понятные настройки вместо кода ---------- */
+const TURRETS=['turret','ammo-turret','electric-turret','fluid-turret','artillery-turret'];
+const FRIENDLY=[
+ {cats:'*', path:'max_health', ru:'Здоровье', en:'Health'},
+ {cats:['unit'], path:'movement_speed', ru:'Скорость передвижения', en:'Movement speed'},
+ {cats:['unit',...TURRETS,'gun'], path:'@damage', ru:'Урон атаки', en:'Attack damage'},
+ {cats:['unit',...TURRETS,'gun'], path:'attack_parameters.range', ru:'Дальность атаки', en:'Attack range'},
+ {cats:['unit',...TURRETS,'gun'], path:'attack_parameters.cooldown', ru:'Перезарядка атаки (тиков, 60 = 1 сек)', en:'Attack cooldown (ticks, 60 = 1s)'},
+ {cats:[...TURRETS,'gun'], path:'attack_parameters.damage_modifier', ru:'Множитель урона', en:'Damage modifier'},
+ {cats:TURRETS, path:'rotation_speed', ru:'Скорость поворота', en:'Rotation speed'},
+ {cats:['unit'], path:'vision_distance', ru:'Дальность обзора', en:'Vision distance'},
+ {cats:['unit'], path:'pollution_to_join_attack', ru:'Загрязнение для атаки', en:'Pollution to join attack'},
+ {cats:['unit'], path:'healing_per_tick', ru:'Восстановление здоровья (в тик)', en:'Healing per tick'},
+ {cats:['unit-spawner'], path:'max_count_of_owned_units', ru:'Максимум своих юнитов', en:'Max owned units'},
+ {cats:['unit-spawner'], path:'healing_per_tick', ru:'Восстановление здоровья (в тик)', en:'Healing per tick'},
+ {cats:['car','spider-vehicle','locomotive','cargo-wagon'], path:'inventory_size', ru:'Размер багажника', en:'Trunk size'},
+ {cats:['car','locomotive','cargo-wagon'], path:'weight', ru:'Масса', en:'Weight'},
+ {cats:['car'], path:'effectivity', ru:'КПД двигателя', en:'Engine effectivity'},
+ {cats:['car'], path:'consumption', ru:'Потребление топлива (напр. 150kW)', en:'Fuel consumption (e.g. 150kW)'},
+ {cats:['locomotive'], path:'max_power', ru:'Мощность (напр. 600kW)', en:'Power (e.g. 600kW)'},
+ {cats:['assembling-machine','furnace'], path:'crafting_speed', ru:'Скорость крафта', en:'Crafting speed'},
+ {cats:['assembling-machine','furnace','mining-drill','inserter','lab'], path:'energy_usage', ru:'Потребление энергии (напр. 150kW)', en:'Energy usage (e.g. 150kW)'},
+ {cats:['mining-drill'], path:'mining_speed', ru:'Скорость добычи', en:'Mining speed'},
+ {cats:['transport-belt','underground-belt','splitter'], path:'speed', ru:'Скорость ленты', en:'Belt speed'},
+ {cats:['logistic-robot','construction-robot'], path:'speed', ru:'Скорость полёта', en:'Flight speed'},
+ {cats:['logistic-robot','construction-robot'], path:'max_payload_size', ru:'Грузоподъёмность', en:'Max payload'},
+ {cats:['lab'], path:'researching_speed', ru:'Скорость исследований', en:'Research speed'},
+ {cats:['radar'], path:'max_distance_of_sector_revealed', ru:'Радиус сканирования (секторов)', en:'Scan radius (sectors)'},
+ {cats:['electric-pole'], path:'supply_area_distance', ru:'Радиус снабжения энергией', en:'Supply area distance'},
+ {cats:['electric-pole'], path:'maximum_wire_distance', ru:'Максимальная длина провода', en:'Max wire distance'},
+ {cats:['solar-panel'], path:'production', ru:'Выработка (напр. 60kW)', en:'Production (e.g. 60kW)'},
+ {cats:['accumulator'], path:'energy_source.buffer_capacity', ru:'Ёмкость (напр. 5MJ)', en:'Capacity (e.g. 5MJ)'},
+ {cats:['item','ammo','capsule','module','tool'], path:'stack_size', ru:'Размер стопки', en:'Stack size'},
+ {cats:['item'], path:'fuel_value', ru:'Топливная ценность (напр. 4MJ)', en:'Fuel value (e.g. 4MJ)'},
+ {cats:['ammo'], path:'magazine_size', ru:'Размер магазина', en:'Magazine size'},
+ {cats:['recipe'], path:'energy_required', ru:'Время крафта (сек)', en:'Craft time (s)'},
+ {cats:['recipe'], path:'enabled', ru:'Доступен с начала игры', en:'Enabled from start'},
+ {cats:['container','logistic-container'], path:'inventory_size', ru:'Ячеек внутри', en:'Slots inside'},
+ {cats:['character'], path:'running_speed', ru:'Скорость бега', en:'Running speed'},
+ {cats:['character'], path:'inventory_size', ru:'Размер инвентаря', en:'Inventory size'},
+ {cats:['character'], path:'reach_distance', ru:'Дальность руки', en:'Reach distance'},
+ {cats:['character'], path:'build_distance', ru:'Дальность строительства', en:'Build distance'}
+];
+const PROPDICT={
+ max_health:'здоровье', movement_speed:'скорость передвижения', running_speed:'скорость бега',
+ rotation_speed:'скорость поворота', range:'дальность', cooldown:'перезарядка (тиков)',
+ damage:'урон', amount:'величина', type:'тип', icon:'иконка', icon_size:'размер иконки',
+ icon_mipmaps:'мип-уровни иконки', stack_size:'размер стопки', inventory_size:'размер инвентаря',
+ crafting_speed:'скорость крафта', energy_usage:'потребление энергии', mining_speed:'скорость добычи',
+ vision_distance:'дальность обзора', resistances:'сопротивления урону', decrease:'снижение урона',
+ percent:'процент поглощения', flags:'флаги', collision_box:'зона столкновений', selection_box:'рамка выделения',
+ corpse:'труп после смерти', dying_explosion:'взрыв при смерти', healing_per_tick:'восстановление здоровья/тик',
+ pollution_to_join_attack:'загрязнение для атаки', distraction_cooldown:'пауза отвлечения',
+ attack_parameters:'параметры атаки', ammo_type:'боеприпас', action:'действие',
+ action_delivery:'доставка урона', target_effects:'эффекты по цели', max_pursue_distance:'дальность преследования',
+ min_pursue_time:'мин. время преследования', spawning_time_modifier:'модификатор времени спавна',
+ speed:'скорость', max_payload_size:'грузоподъёмность', energy_source:'источник энергии',
+ buffer_capacity:'ёмкость', fuel_value:'топливная ценность', magazine_size:'размер магазина',
+ damage_modifier:'множитель урона', supply_area_distance:'радиус снабжения',
+ maximum_wire_distance:'длина провода', researching_speed:'скорость исследований',
+ production:'выработка энергии', consumption:'потребление', effectivity:'КПД', weight:'масса',
+ braking_power:'мощность торможения', animation:'анимация', animations:'анимации', sound:'звук',
+ working_sound:'звук работы', dying_sound:'звук смерти', walking_sound:'звук шагов',
+ minable:'добыча', mining_time:'время добычи', result:'результат', order:'порядок сортировки',
+ subgroup:'подгруппа', energy_required:'время крафта (сек)', enabled:'доступен с начала',
+ ingredients:'составляющие', results:'результаты', attack_speed:'скорость атаки',
+ reach_distance:'дальность руки', build_distance:'дальность строительства',
+ max_energy_usage:'макс. потребление', module_specification:'модули', module_slots:'слоты модулей',
+ pollution:'загрязнение', emissions_per_minute:'выбросы в минуту', water_reflection:'отражение в воде'
+};
+function getByPath(o,path){
+  let cur=o;
+  const parts=path.match(/[A-Za-z_][A-Za-z0-9_]*|\[\d+\]/g)||[];
+  for(const p of parts){
+    if(cur===null||typeof cur!=='object') return undefined;
+    if(p[0]==='[') cur=cur[parseInt(p.slice(1))-1];
+    else cur=cur[p];
+  }
+  return cur;
+}
+function findDamage(proto){
+  if(!proto.attack_parameters) return null;
+  let found=null;
+  (function walk(o,path){
+    if(found||o===null||typeof o!=='object') return;
+    if(o.damage&&typeof o.damage==='object'&&typeof o.damage.amount==='number'){ found=path+'.damage.amount'; return; }
+    const isArr=Array.isArray(o);
+    const ks=isArr? o.map((_,i)=>i):Object.keys(o);
+    for(const k of ks){
+      if(found) return;
+      if(!isArr&&!/^[A-Za-z_][A-Za-z0-9_]*$/.test(String(k))) continue;
+      walk(o[k], path+(isArr?('['+(k+1)+']'):('.'+k)));
+    }
+  })(proto.attack_parameters,'attack_parameters');
+  return found;
+}
+function friendlyChanged(i,inp){
+  const r=S.friendlyRows[i]; if(!r) return;
+  if(r.vtype==='boolean'){ applyProp(r.path, inp.checked, 'boolean'); return; }
+  if(r.vtype==='number'){
+    const v=parseFloat(inp.value);
+    if(isNaN(v)){ toast(L('Введите число.','Enter a number.'),true); renderProtoPanel(); return; }
+    applyProp(r.path, v, 'number'); return;
+  }
+  applyProp(r.path, inp.value, 'string');
 }
 function setTarget(t){ S.target=t||{kind:'override',category:S.cat,name:S.proto}; renderProtoPanel(); }
 function renderProtoPanel(){
@@ -933,6 +1045,35 @@ function renderProtoPanel(){
   const chips=props.map((p,i)=>`<div class="propchip"><span class="p">${esc(p.path)}</span> = <b>${esc(p.vtype==='nil'?'nil':p.value)}</b>
      <div style="flex:1"></div><button class="small danger" onclick="removeProp(${i})">✕</button></div>`).join('');
   const hasIcon=proto.icon||proto.icons;
+
+  // карточка "Основные свойства" — без кода
+  S.friendlyRows=[];
+  let frows='';
+  for(const e of FRIENDLY){
+    if(e.cats!=='*' && !e.cats.includes(S.cat)) continue;
+    const path = e.path==='@damage'? findDamage(proto) : e.path;
+    if(!path) continue;
+    if(S.friendlyRows.some(r=>r.path===path)) continue;
+    const orig=getByPath(proto,path);
+    const tp=typeof orig;
+    if(orig===undefined||orig===null||(tp!=='number'&&tp!=='string'&&tp!=='boolean')) continue;
+    const staged=findProp(path);
+    const val=staged? staged.value : orig;
+    const idx=S.friendlyRows.length;
+    S.friendlyRows.push({path, vtype: tp==='number'?'number':(tp==='boolean'?'boolean':'string')});
+    let input;
+    if(tp==='boolean') input=`<input type="checkbox" ${val?'checked':''} onchange="friendlyChanged(${idx},this)">`;
+    else if(tp==='number') input=`<input type="number" step="any" value="${val}" style="width:140px" onchange="friendlyChanged(${idx},this)">`;
+    else input=`<input type="text" value="${esc(val)}" style="width:200px" onchange="friendlyChanged(${idx},this)">`;
+    frows+=`<div class="frow"><div class="flabel" title="${esc(path)}">${esc(L(e.ru,e.en))}</div>${input}
+      ${staged? `<span class="changedmark">●</span><button class="small" onclick="removePropByPath('${esc(path)}')">${L('вернуть','revert')}</button><span class="fwas">${L('было:','was:')} ${esc(JSON.stringify(orig))}</span>`:''}
+    </div>`;
+  }
+  const friendlyCard = frows
+    ? `<div class="card"><h3>${L('Основные свойства','Main properties')}</h3>${frows}
+       <div class="hint">${L('Изменили значение — оно сразу сохраняется в мод. Оранжевая точка — свойство изменено.','Change a value and it is saved to the mod immediately. Orange dot = changed.')}</div></div>`
+    : `<div class="card"><div class="hint">${L('Для этого типа пока нет упрощённых настроек — откройте «Все свойства» ниже.','No simplified settings for this type yet — open "All properties" below.')}</div></div>`;
+
   right.innerHTML=`
     <div class="card"><h3>${esc(ru||S.proto)} <span class="badge">${esc(S.cat)} / ${esc(S.proto)}</span><div class="spacer"></div>
       ${hasIcon?`<button class="small" onclick="$('iconFile').click()">${L('Заменить иконку (PNG)','Replace icon (PNG)')}</button><input type="file" id="iconFile" accept="image/png" style="display:none" onchange="replaceIcon(this)">`:''}
@@ -940,11 +1081,15 @@ function renderProtoPanel(){
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
         <button class="small${!isClone?' primary':''}" onclick='setTarget(null)'>${L('менять оригинал','edit the original')}</button>${cloneBtns}</div>
       <div class="hint">${isClone? L('Изменения применяются к вашей копии.','Changes apply to your copy.') : L('Изменения применяются к оригиналу в игре.','Changes apply to the original in game.')}
-        ${L('Наведите на строку в дереве: ✎ — изменить значение, ∅ — убрать свойство.','Hover a row in the tree: ✎ — edit the value, ∅ — remove the property.')}</div>
+        ${L('Главные характеристики — в карточке ниже; всё остальное — в «расширенном режиме».','Key stats are in the card below; everything else is under advanced mode.')}</div>
       ${chips?`<div style="margin-top:8px">${chips}</div>`:''}
     </div>
-    <div class="card"><div class="tree" id="tree"></div></div>`;
-  buildTree($('tree'),proto,'');
+    ${friendlyCard}
+    <div class="card"><h3>${L('Все свойства (расширенный режим)','All properties (advanced mode)')} <div class="spacer"></div>
+      <button class="small" id="advBtn">${S.advOpen? L('Скрыть','Hide'):L('Показать','Show')}</button></h3>
+      <div class="tree" id="tree" style="${S.advOpen?'':'display:none'}"></div></div>`;
+  $('advBtn').onclick=()=>{ S.advOpen=!S.advOpen; renderProtoPanel(); };
+  if(S.advOpen) buildTree($('tree'),proto,'');
 }
 function cloneForm(){
   openModal(`<h3>${L('Копия:','Copy of:')} ${esc(locName(S.proto)||S.proto)}</h3><div class="formgrid">
@@ -1016,7 +1161,8 @@ function appendNodes(parent,obj,prefix,depth){
       const det=document.createElement('details');
       const sum=document.createElement('summary');
       const staged=stagedUnder(path);
-      sum.innerHTML=esc(isArr?('['+(k+1)+']'):k)+(Array.isArray(v)?` <span class="badge">${v.length}</span>`:'')+(staged?' <span class="changedmark">●</span>':'');
+      const bnote=(LANG==='ru'&&PROPDICT[k])?` <span class="keynote">· ${esc(PROPDICT[k])}</span>`:'';
+      sum.innerHTML=esc(isArr?('['+(k+1)+']'):k)+bnote+(Array.isArray(v)?` <span class="badge">${v.length}</span>`:'')+(staged?' <span class="changedmark">●</span>':'');
       det.appendChild(sum);
       if(editable){
         const nil=document.createElement('button'); nil.className='small'; nil.textContent='∅'; nil.title=L('Убрать это свойство (nil)','Remove this property (nil)');
@@ -1040,7 +1186,8 @@ function leafRow(path,key,val,editable){
   const staged=findProp(path);
   const shown=staged? (staged.vtype==='nil'?'nil':staged.value):val;
   const isStr=typeof shown==='string';
-  row.innerHTML=`<span class="k">${esc(key)}</span> = <span class="v${isStr?' str':''}${staged?' changed':''}">${esc(JSON.stringify(shown))}</span>`;
+  const lnote=(LANG==='ru'&&PROPDICT[key])?` <span class="keynote">· ${esc(PROPDICT[key])}</span>`:'';
+  row.innerHTML=`<span class="k">${esc(key)}</span> = <span class="v${isStr?' str':''}${staged?' changed':''}">${esc(JSON.stringify(shown))}</span>${lnote}`;
   if(staged){
     const undo=document.createElement('button'); undo.className='small'; undo.textContent=L('вернуть','revert');
     undo.onclick=()=>removePropByPath(path); row.appendChild(undo);
