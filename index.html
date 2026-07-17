@@ -205,6 +205,17 @@ const BASE_ITEMS = [
  ['pipe','Труба','Pipe'],['repair-pack','Ремкомплект','Repair pack'],['landfill','Насыпь','Landfill']];
 const BASE_CHESTS = [['wooden-chest','Деревянный сундук','Wooden chest'],['iron-chest','Железный сундук','Iron chest'],['steel-chest','Стальной сундук','Steel chest']];
 const BASE_ORES = [['iron-ore','Железная руда','Iron ore'],['copper-ore','Медная руда','Copper ore'],['coal','Уголь','Coal'],['stone','Камень','Stone'],['uranium-ore','Урановая руда','Uranium ore']];
+const BASE_TECHS = [['automation','Автоматизация','Automation'],['logistics','Логистика','Logistics'],
+ ['military','Военное дело','Military'],['steel-processing','Сталь','Steel processing'],
+ ['oil-processing','Нефтепереработка','Oil processing'],['robotics','Робототехника','Robotics'],
+ ['rocket-silo','Ракетная шахта','Rocket silo']];
+const SCI_PACKS = [['automation-science-pack','Красный (автоматизация)','Red (automation)'],
+ ['logistic-science-pack','Зелёный (логистика)','Green (logistic)'],
+ ['military-science-pack','Военный (серый)','Military (grey)'],
+ ['chemical-science-pack','Синий (химия)','Blue (chemical)'],
+ ['production-science-pack','Производственный (фиолетовый)','Production (purple)'],
+ ['utility-science-pack','Жёлтый (универсальный)','Utility (yellow)'],
+ ['space-science-pack','Космический (белый)','Space (white)']];
 const CATRU = {
  'item':'Предметы','ammo':'Боеприпасы','gun':'Оружие','armor':'Броня','capsule':'Капсулы/гранаты','module':'Модули',
  'tool':'Научные пакеты','fluid':'Жидкости','recipe':'Рецепты','technology':'Технологии',
@@ -318,7 +329,7 @@ function slug(s){ let out=''; for(const ch of String(s).toLowerCase()){
   if(ch in TRANSLIT) out+=TRANSLIT[ch]; else if(/[a-z0-9]/.test(ch)) out+=ch; else out+='-'; }
   out = out.replace(/-+/g,'-').replace(/^-|-$/g,''); return out||'thing'; }
 function cur(){ return S.projects.find(p=>p.id===S.sel); }
-function uniqueId(base){ const M=cur().model; const ids=[...M.items,...M.chests,...M.recipes,...M.clones,...(M.ores||[])].map(x=>x.id);
+function uniqueId(base){ const M=cur().model; const ids=[...M.items,...M.chests,...M.recipes,...M.clones,...(M.ores||[]),...(M.techs||[])].map(x=>x.id);
   let id=base,i=2; while(ids.includes(id)) id=base+'-'+(i++); return id; }
 function locName(name){ if(LANG!=='ru') return null;
   for(const sec of ['entity-name','item-name','fluid-name','equipment-name','recipe-name','technology-name']){
@@ -343,7 +354,7 @@ function loadProjects(){
   try{ return JSON.parse(localStorage.getItem('fmw.projects'))||[]; }catch(e){ return []; }
 }
 function save(cb){ persist(); if(cb) cb(); }
-function defModel(){ return { items:[], recipes:[], chests:[], ores:[], clones:[], overrides:[], tweaks:{run:100,inv:0,stack:1} }; }
+function defModel(){ return { items:[], recipes:[], chests:[], ores:[], techs:[], clones:[], overrides:[], tweaks:{run:100,inv:0,stack:1} }; }
 
 function idb(){ return new Promise((res,rej)=>{ const r=indexedDB.open('fmw',1);
   r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
@@ -357,6 +368,19 @@ function luaNum(n){ const v=Math.round((+n)*1e6)/1e6; return String(v); }
 function hexToRgb01(h){
   h=String(h||'#b06a2a'); if(h[0]==='#') h=h.slice(1);
   return { r:parseInt(h.slice(0,2),16)/255, g:parseInt(h.slice(2,4),16)/255, b:parseInt(h.slice(4,6),16)/255 };
+}
+function jsonToLua(v){
+  if(v===null||v===undefined) return 'nil';
+  if(typeof v==='number') return luaNum(v);
+  if(typeof v==='boolean') return v?'true':'false';
+  if(typeof v==='string') return '"'+escLua(v)+'"';
+  if(Array.isArray(v)) return '{ '+v.map(jsonToLua).join(', ')+' }';
+  const parts=[];
+  for(const k of Object.keys(v)){
+    if(/^[A-Za-z_][A-Za-z0-9_]*$/.test(k)) parts.push(k+' = '+jsonToLua(v[k]));
+    else parts.push('["'+escLua(k)+'"] = '+jsonToLua(v[k]));
+  }
+  return '{ '+parts.join(', ')+' }';
 }
 function escLua(s){ return String(s??'').replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/\r/g,'').replace(/\n/g,'\\n'); }
 const PATH_RX=/^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])*$/;
@@ -373,6 +397,9 @@ function fmtVal(p){
   }
   if(p.vtype==='numarr'){
     return '{ '+(p.value||[]).map(luaNum).join(', ')+' }';
+  }
+  if(p.vtype==='json'){
+    return jsonToLua(p.value);
   }
   return '"'+escLua(p.value)+'"';
 }
@@ -410,6 +437,26 @@ function genDataLua(p){
       '  it.localised_name = nil',
       '  it.localised_description = nil',
       '  data:extend({ent, it})','end','');
+  }
+  for(const t of (M.techs||[])){
+    const ings=(t.packs||[]).map(g=>'{type="item", name="'+escLua(g.item)+'", amount='+luaNum(g.count)+'}').join(', ');
+    const eff=(t.recipes||[]).map(r=>'{type="unlock-recipe", recipe="'+escLua(r)+'"}').join(', ');
+    const pre=(t.prereqs||[]).map(x=>'"'+escLua(x)+'"').join(', ');
+    out.push('do',
+      '  local t = table.deepcopy(data.raw["technology"]["'+t.base+'"])',
+      '  t.name = "'+t.id+'"',
+      '  t.localised_name = nil',
+      '  t.localised_description = nil',
+      '  t.normal = nil',
+      '  t.expensive = nil',
+      '  t.upgrade = nil',
+      '  t.max_level = nil',
+      '  t.effects = { '+eff+' }',
+      '  t.prerequisites = { '+pre+' }',
+      '  t.unit = { count = '+luaNum(t.count||100)+', time = '+luaNum(t.time||30)+', ingredients = { '+ings+' } }',
+      '  t.enabled = true',
+      '  t.hidden = false',
+      '  data:extend({t})','end','');
   }
   for(const ch of M.chests){
     const rec = v2
@@ -476,12 +523,15 @@ function genLocale(p,lang){
   for(const it of M.items) item.push(it.id+'='+pick(it));
   for(const ch of M.chests){ item.push(ch.id+'='+pick(ch)); ent.push(ch.id+'='+pick(ch)); }
   for(const o of (M.ores||[])){ item.push(o.id+'='+pick(o)); ent.push(o.id+'='+pick(o)); }
+  const tech=[];
+  for(const t of (M.techs||[])) tech.push(t.id+'='+pick(t));
   for(const cl of M.clones){ item.push(cl.id+'='+pick(cl)); ent.push(cl.id+'='+pick(cl)); }
   for(const rc of M.recipes) rec.push(rc.id+'='+(lang==='ru'? ruLabelG(p,rc.result) : enLabel(p,rc.result)));
   const C=[];
   if(item.length){ C.push('[item-name]',...item,''); }
   if(ent.length){ C.push('[entity-name]',...ent,''); }
   if(rec.length){ C.push('[recipe-name]',...rec,''); }
+  if(tech.length){ C.push('[technology-name]',...tech,''); }
   return C.length? C.join('\n').trimEnd()+'\n' : null;
 }
 function genInfo(p){
@@ -659,6 +709,7 @@ async function importProject(inp){
     const p=JSON.parse(await f.text());
     if(!p.name || !p.model){ toast(L('Это не файл проекта Мастерской.','This is not a Workshop project file.'), true); return; }
     if(!p.model.ores) p.model.ores=[];
+    if(!p.model.techs) p.model.techs=[];
     p.id='p'+Date.now();
     while(S.projects.some(x=>x.name===p.name)) p.name=p.name+'-copy';
     S.projects.push(p); S.sel=p.id; save(render);
@@ -696,7 +747,8 @@ function renderContent(){
       <button class="small" onclick="itemForm()">+ ${L('Предмет','Item')}</button>
       <button class="small" onclick="chestForm()">+ ${L('Сундук','Chest')}</button>
       <button class="small" onclick="recipeForm()">+ ${L('Рецепт','Recipe')}</button>
-      <button class="small" onclick="oreForm()">+ ${L('Руда','Ore')}</button></h3>`;
+      <button class="small" onclick="oreForm()">+ ${L('Руда','Ore')}</button>
+      <button class="small" onclick="techForm()">+ ${L('Исследование','Technology')}</button></h3>`;
   const rows=[];
   M.items.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">${L('предмет','item')}</span><div class="grow">${esc(x.ru)}
      <div class="sub">${L('стопка','stack')} ${x.stack}, ${L('выглядит как','looks like')} ${esc(labelOf(x.base))}</div></div>
@@ -709,6 +761,9 @@ function renderContent(){
      <div class="grow">${esc(x.ru)}
      <div class="sub">${L('на основе','based on')} ${esc(labelOf(x.base))}, ${L('добыча','mining')} ${x.time||1} ${L('сек','s')}${x.sprite?', '+L('свой спрайт','custom sprite'):''}</div></div>
      <button class="small" onclick="oreForm(${i})">${L('Изменить','Edit')}</button><button class="small danger" onclick="delEntry('ores',${i})">✕</button></div>`));
+  (M.techs||[]).forEach((x,i)=>rows.push(`<div class="row"><span class="badge">${L('исслед.','tech')}</span><div class="grow">${esc(x.ru)}
+     <div class="sub">${x.count||100} × ${x.time||30} ${L('сек','s')}; ${L('открывает рецептов:','unlocks recipes:')} ${(x.recipes||[]).length}</div></div>
+     <button class="small" onclick="techForm(${i})">${L('Изменить','Edit')}</button><button class="small danger" onclick="delEntry('techs',${i})">✕</button></div>`));
   M.recipes.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">${L('рецепт','recipe')}</span><div class="grow">${esc(labelOf(x.result))} ×${x.count}
      <div class="sub">${L('из:','from:')} ${x.ingredients.map(g=>esc(labelOf(g.item))+' ×'+g.count).join(' + ')}; ${x.time} ${L('сек','s')}</div></div>
      <button class="small" onclick="recipeForm(${i})">${L('Изменить','Edit')}</button><button class="small danger" onclick="delEntry('recipes',${i})">✕</button></div>`));
@@ -832,6 +887,77 @@ async function oreSave(i){
   if(i>=0) M.ores[i]=obj; else M.ores.push(obj);
   closeModal(); save(renderContent);
   toast(L('Руда сохранена в мод.','Ore saved to the mod.'));
+}
+function ensureOwnRecipesDL(){
+  const M=cur().model;
+  let dl=$('fmwOwnRecipesDL');
+  if(!dl){ dl=document.createElement('datalist'); dl.id='fmwOwnRecipesDL'; document.body.appendChild(dl); }
+  let opts='';
+  for(const r of M.recipes) opts+=`<option value="${esc(r.id)}">${esc(labelOf(r.result))}</option>`;
+  for(const c of M.chests) opts+=`<option value="${esc(c.id)}">${esc(c.ru)}</option>`;
+  if(S.dump&&S.dump.recipe) for(const n of Object.keys(S.dump.recipe)){ const ru=locName(n); opts+=`<option value="${esc(n)}">${ru?esc(ru):''}</option>`; }
+  if(S.dump&&S.dump.technology){
+    let tl=$('fmwOwnTechsDL');
+    if(!tl){ tl=document.createElement('datalist'); tl.id='fmwOwnTechsDL'; document.body.appendChild(tl); }
+    let topts='';
+    for(const n of Object.keys(S.dump.technology)){ const ru=locName(n); topts+=`<option value="${esc(n)}">${ru?esc(ru):''}</option>`; }
+    for(const t of (M.techs||[])) topts+=`<option value="${esc(t.id)}">${esc(t.ru)}</option>`;
+    tl.innerHTML=topts;
+  }
+  let pl=$('fmwPacksDL');
+  if(!pl){ pl=document.createElement('datalist'); pl.id='fmwPacksDL'; document.body.appendChild(pl); }
+  let popts='';
+  if(S.dump&&S.dump.tool){
+    for(const n of Object.keys(S.dump.tool)){ const ru=locName(n); popts+=`<option value="${esc(n)}">${ru?esc(ru):''}</option>`; }
+  } else {
+    for(const b of SCI_PACKS) popts+=`<option value="${esc(b[0])}">${esc(L(b[1],b[2]))}</option>`;
+  }
+  pl.innerHTML=popts;
+  dl.innerHTML=opts;
+}
+function techForm(i){
+  const x=i!==undefined? (cur().model.techs||[])[i]:null;
+  ensureOwnRecipesDL();
+  const pk=n=> x?.packs?.[n];
+  let packRows='';
+  for(let n=0;n<3;n++) packRows+=`<label>${L('Науч. пакет','Science pack')} ${n+1}</label>
+    <div style="display:flex;gap:8px"><select id="fPack${n}" style="flex:1">
+      <option value="-">${L('— не используется —','— not used —')}</option>
+      ${SCI_PACKS.map(b=>`<option value="${b[0]}"${(pk(n)?.item||(n===0?'automation-science-pack':''))===b[0]?' selected':''}>${esc(L(b[1],b[2]))}</option>`).join('')}
+    </select><input id="fPackN${n}" type="number" min="1" max="100" value="${pk(n)?.count||1}" style="width:80px"></div>`;
+  let preRows='';
+  for(let n=0;n<2;n++) preRows+=`<label>${L('Требует исслед.','Requires tech')} ${n+1}</label>
+    <input id="fPre${n}" list="fmwOwnTechsDL" value="${esc(x?.prereqs?.[n]||'')}" placeholder="${L('пусто = не нужно','empty = none')}">`;
+  let urRows='';
+  for(let n=0;n<4;n++) urRows+=`<label>${L('Открывает рецепт','Unlocks recipe')} ${n+1}</label>
+    <input id="fUR${n}" list="fmwOwnRecipesDL" value="${esc(x?.recipes?.[n]||'')}" placeholder="${L('пусто = ничего','empty = nothing')}">`;
+  openModal(`<h3>${x?L('Изменить исследование','Edit technology'):L('Новое исследование','New technology')}</h3><div class="formgrid">
+    <label>${L('Название (по-русски)','Name (Russian)')}</label><input id="fRu" value="${esc(x?.ru||'')}">
+    <label>${L('Название (English)','Name (English)')}</label><input id="fEn" value="${esc(x?.en||'')}">
+    <label>${L('Иконка как у','Icon like')}</label><select id="fBase">${BASE_TECHS.map(b=>`<option value="${b[0]}"${(x?.base||'automation')===b[0]?' selected':''}>${esc(L(b[1],b[2]))}</option>`).join('')}</select>
+    <label>${L('Циклов исследования','Research cycles')}</label><input id="fCount" type="number" min="1" value="${x?.count||100}" style="width:110px">
+    <label>${L('Время цикла (сек)','Cycle time (s)')}</label><input id="fTime" type="number" min="1" step="any" value="${x?.time||30}" style="width:110px">
+    ${packRows}${preRows}${urRows}
+    </div><div class="hint">${L('Совет: чтобы рецепт открывался этим исследованием, у рецепта снимите галочку «Доступен с начала игры» (для своих рецептов это пока не настраивается — они доступны сразу; исследование лучше использовать для открытия изменённых рецептов игры).',
+      'Tip: for a recipe to be unlocked by this tech, the recipe must not be enabled from start.')}</div>
+    <div class="btns"><button onclick="closeModal()">${L('Отмена','Cancel')}</button><button class="primary" onclick="techSave(${i??-1})">${L('Сохранить','Save')}</button></div>`);
+}
+function techSave(i){
+  const M=cur().model; M.techs=M.techs||[];
+  const ru=$('fRu').value.trim(); const en=$('fEn').value.trim();
+  if(!ru&&!en){ toast(L('Введите название.','Enter a name.'),true); return; }
+  const packs=[];
+  for(let n=0;n<3;n++){ const v=$('fPack'+n).value; if(v!=='-') packs.push({item:v,count:+$('fPackN'+n).value||1}); }
+  if(!packs.length){ toast(L('Выберите хотя бы один научный пакет.','Pick at least one science pack.'),true); return; }
+  if(new Set(packs.map(g=>g.item)).size!==packs.length){ toast(L('Пакеты не должны повторяться.','Packs must not repeat.'),true); return; }
+  const prereqs=[]; for(let n=0;n<2;n++){ const v=$('fPre'+n).value.trim(); if(v) prereqs.push(v); }
+  const recipes=[]; for(let n=0;n<4;n++){ const v=$('fUR'+n).value.trim(); if(v) recipes.push(v); }
+  const obj={ id:i>=0? M.techs[i].id : uniqueId(cur().name.toLowerCase()+'-'+slug(en||ru)),
+    ru:ru||en, en, base:$('fBase').value, count:+$('fCount').value||100, time:+$('fTime').value||30,
+    packs, prereqs, recipes };
+  if(i>=0) M.techs[i]=obj; else M.techs.push(obj);
+  closeModal(); save(renderContent);
+  toast(L('Исследование сохранено в мод.','Technology saved to the mod.'));
 }
 function recipeForm(i){
   const x=i!==undefined? cur().model.recipes[i]:null;
@@ -1004,7 +1130,7 @@ function targetProps(){
   return cl? cl.props:[];
 }
 function openProto(cat,name,target){
-  S.proto=name; S.cat=cat; S.advOpen=false; S.recipeDraft=null;
+  S.proto=name; S.cat=cat; S.advOpen=false; S.recipeDraft=null; S.techDraft=null;
   S.target=target||{kind:'override',category:cat,name:name};
   renderProtoList(); renderProtoPanel();
 }
@@ -1080,7 +1206,10 @@ const PROPDICT={
  max_energy_usage:'макс. потребление', module_specification:'модули', module_slots:'слоты модулей',
  pollution:'загрязнение', emissions_per_minute:'выбросы в минуту', water_reflection:'отражение в воде',
  map_color:'цвет на карте', autoplace:'распределение по карте', stages:'спрайты залежи',
- stage_counts:'пороги стадий истощения', infinite:'бесконечная', mining_particle:'частицы при добыче'
+ stage_counts:'пороги стадий истощения', infinite:'бесконечная', mining_particle:'частицы при добыче',
+ unit:'стоимость исследования', prerequisites:'требуемые исследования', effects:'эффекты',
+ count:'число циклов', count_formula:'формула количества', recipe:'рецепт',
+ modifier:'величина бонуса', upgrade:'улучшение', max_level:'макс. уровень', hidden:'скрыто'
 };
 function getByPath(o,path){
   let cur=o;
@@ -1241,6 +1370,120 @@ function resetRecipe(){
   S.recipeDraft=null;
   cleanupSave();
 }
+
+/* ---------- редактор исследований ---------- */
+function techParts(proto){
+  const src=proto.normal||proto;
+  const unit=src.unit||{};
+  const packs=(unit.ingredients||[]).map(g=>Array.isArray(g)? {item:g[0],count:g[1]||1} : {item:g.name,count:g.amount||1});
+  const pre=(src.prerequisites||[]).map(String);
+  const effects=src.effects||[];
+  const unlocks=effects.filter(e=>e&&e.type==='unlock-recipe').map(e=>e.recipe);
+  const others=effects.filter(e=>!(e&&e.type==='unlock-recipe'));
+  return {count:unit.count||null, formula:unit.count_formula||null, time:unit.time||30, packs, pre, unlocks, others};
+}
+function ensureTechDraft(proto){
+  if(S.techDraft) return;
+  const parts=techParts(proto);
+  let d={ count:parts.count||100, formula:parts.formula, time:parts.time,
+    packs:parts.packs, pre:parts.pre, unlocks:parts.unlocks, others:parts.others };
+  const su=findProp('unit'), sp=findProp('prerequisites'), se=findProp('effects');
+  if(su&&su.vtype==='json'){ const u=su.value||{};
+    if(u.count_formula){ d.formula=u.count_formula; } else if(u.count){ d.count=u.count; d.formula=null; }
+    if(u.time) d.time=u.time;
+    if(u.ingredients) d.packs=u.ingredients.map(g=>({item:g.name,count:g.amount||1}));
+  }
+  if(sp&&sp.vtype==='json') d.pre=[...(sp.value||[])];
+  if(se&&se.vtype==='json'){
+    d.unlocks=(se.value||[]).filter(e=>e.type==='unlock-recipe').map(e=>e.recipe);
+    d.others=(se.value||[]).filter(e=>e.type!=='unlock-recipe');
+  }
+  S.techDraft=JSON.parse(JSON.stringify(d));
+}
+function buildTechCard(proto){
+  ensureTechDraft(proto);
+  ensureOwnRecipesDL();
+  const d=S.techDraft;
+  const staged=!!(findProp('unit')||findProp('prerequisites')||findProp('effects'));
+  const strRow=(kind,i,val,dl)=>`<div class="frow">
+      <input list="${dl}" value="${esc(val)}" style="width:300px" onchange="techListChanged('${kind}',${i},this)">
+      <div style="flex:1"></div><button class="small danger" onclick="techListDel('${kind}',${i})">✕</button></div>`;
+  const packRow=(g,i)=>`<div class="frow">
+      <input list="fmwPacksDL" value="${esc(g.item)}" style="width:300px" onchange="techPackChanged(${i},'item',this)">
+      <input type="number" min="1" max="100" value="${g.count}" style="width:80px" onchange="techPackChanged(${i},'count',this)">
+      <span class="keynote">${esc(locName(g.item)||'')}</span>
+      <div style="flex:1"></div><button class="small danger" onclick="techListDel('packs',${i})">✕</button></div>`;
+  return `<div class="card"><h3>${L('Исследование','Research')}${staged?' <span class="changedmark">●</span>':''}<div class="spacer"></div>
+      ${staged?`<button class="small" onclick="resetTech()">${L('Сбросить изменения','Reset changes')}</button>`:''}
+      <button class="small primary" onclick="saveTech()">${L('Сохранить исследование','Save research')}</button></h3>
+    ${d.formula!==null&&d.formula!==undefined
+      ? `<div class="frow"><div class="flabel">${L('Формула количества (бесконечное)','Count formula (infinite)')}</div>
+         <input type="text" value="${esc(d.formula)}" style="width:220px" onchange="techFormula(this)"></div>`
+      : `<div class="frow"><div class="flabel">${L('Циклов исследования','Research cycles')}</div>
+         <input type="number" min="1" value="${d.count}" style="width:110px" onchange="techCount(this)"></div>`}
+    <div class="frow"><div class="flabel">${L('Время цикла (сек)','Cycle time (s)')}</div>
+      <input type="number" min="1" step="any" value="${d.time}" style="width:110px" onchange="techTime(this)"></div>
+    <div class="hint" style="margin-top:0">${L('Научные пакеты (на один цикл):','Science packs (per cycle):')}</div>
+    ${d.packs.map(packRow).join('')}
+    <button class="small" onclick="techListAdd('packs')">+ ${L('пакет','pack')}</button>
+    <div class="hint">${L('Требуемые исследования:','Prerequisite technologies:')}</div>
+    ${d.pre.map((v,i)=>strRow('pre',i,v,'fmwOwnTechsDL')).join('')||'<div class="hint">'+L('— нет —','— none —')+'</div>'}
+    <button class="small" onclick="techListAdd('pre')">+ ${L('требование','prerequisite')}</button>
+    <div class="hint">${L('Открывает рецепты:','Unlocks recipes:')}</div>
+    ${d.unlocks.map((v,i)=>strRow('unlocks',i,v,'fmwOwnRecipesDL')).join('')||'<div class="hint">'+L('— нет —','— none —')+'</div>'}
+    <button class="small" onclick="techListAdd('unlocks')">+ ${L('рецепт','recipe')}</button>
+    ${d.others.length?`<div class="hint">⚠ ${L('Другие эффекты (бонусы):','Other effects (bonuses):')} ${d.others.length} — ${L('сохранятся как есть.','kept as is.')}</div>`:''}
+    <div class="hint">${L('Изменения попадут в мод после «Сохранить исследование».','Changes are stored after "Save research".')}</div>
+  </div>`;
+}
+function techCount(inp){ const v=parseFloat(inp.value); if(!isNaN(v)&&v>0) S.techDraft.count=Math.round(v); }
+function techTime(inp){ const v=parseFloat(inp.value); if(!isNaN(v)&&v>0) S.techDraft.time=v; }
+function techFormula(inp){ S.techDraft.formula=inp.value.trim(); }
+function techPackChanged(i,field,inp){
+  const g=S.techDraft.packs[i]; if(!g) return;
+  if(field==='item') g.item=inp.value.trim();
+  else { const v=parseFloat(inp.value); if(!isNaN(v)&&v>0) g.count=Math.round(v); }
+}
+function techListChanged(kind,i,inp){ const a=S.techDraft[kind==='pre'?'pre':'unlocks']; if(a[i]!==undefined) a[i]=inp.value.trim(); }
+function techListAdd(kind){
+  const d=S.techDraft;
+  if(kind==='packs'){ if(d.packs.length<7) d.packs.push({item:'automation-science-pack',count:1}); }
+  else if(kind==='pre'){ if(d.pre.length<6) d.pre.push(''); }
+  else { if(d.unlocks.length<10) d.unlocks.push(''); }
+  renderProtoPanel();
+}
+function techListDel(kind,i){
+  const d=S.techDraft;
+  if(kind==='packs') d.packs.splice(i,1); else if(kind==='pre') d.pre.splice(i,1); else d.unlocks.splice(i,1);
+  renderProtoPanel();
+}
+function saveTech(){
+  const d=S.techDraft; const proto=(S.dump[S.cat]||{})[S.proto];
+  for(const g of d.packs){ if(!g.item){ toast(L('Заполните названия пакетов.','Fill in pack names.'),true); return; } }
+  if(!d.packs.length){ toast(L('Нужен хотя бы один научный пакет.','Need at least one science pack.'),true); return; }
+  const pre=d.pre.map(s=>s.trim()).filter(Boolean);
+  const unlocks=d.unlocks.map(s=>s.trim()).filter(Boolean);
+  const unit={ time:+d.time||30, ingredients:d.packs.map(g=>({type:'item',name:g.item,amount:+g.count||1})) };
+  if(d.formula!==null&&d.formula!==undefined&&String(d.formula).trim()) unit.count_formula=String(d.formula).trim();
+  else unit.count=Math.round(+d.count)||100;
+  const up=(path,value,vtype)=>{ const ps=targetProps(); const ex=ps.find(p=>p.path===path);
+    if(ex){ ex.value=value; ex.vtype=vtype; } else ps.push({path,value,vtype}); };
+  up('unit', unit, 'json');
+  up('prerequisites', pre, 'json');
+  up('effects', [...d.others, ...unlocks.map(r=>({type:'unlock-recipe',recipe:r}))], 'json');
+  if(proto.normal!==undefined) up('normal', null, 'nil');
+  if(proto.expensive!==undefined) up('expensive', null, 'nil');
+  cleanupSave();
+  toast(L('Исследование сохранено в мод.','Research saved to the mod.'));
+}
+function resetTech(){
+  const ps=targetProps();
+  for(const path of ['unit','prerequisites','effects','normal','expensive']){
+    const i=ps.findIndex(p=>p.path===path); if(i>=0) ps.splice(i,1);
+  }
+  S.techDraft=null;
+  cleanupSave();
+}
 function setTarget(t){ S.target=t||{kind:'override',category:S.cat,name:S.proto}; renderProtoPanel(); }
 function renderProtoPanel(){
   const right=$('catright'); const proto=(S.dump[S.cat]||{})[S.proto];
@@ -1250,7 +1493,7 @@ function renderProtoPanel(){
   const clones=M.clones.filter(c=>c.category===S.cat&&c.base===S.proto);
   const cloneBtns=clones.map(c=>`<button class="small${isClone&&t.id===c.id?' primary':''}" onclick='setTarget({kind:"clone",id:"${esc(c.id)}"})'>${L('клон:','clone:')} ${esc(c.ru)}</button>`).join(' ');
   const props=targetProps();
-  const chipVal=p=> p.vtype==='nil'? 'nil' : (p.vtype==='ings'||p.vtype==='results')? (p.value||[]).map(g=>g.item+'×'+g.count).join(' + ') : p.value;
+  const chipVal=p=> p.vtype==='nil'? 'nil' : (p.vtype==='ings'||p.vtype==='results')? (p.value||[]).map(g=>g.item+'×'+g.count).join(' + ') : (p.vtype==='json'||p.vtype==='sheet'||p.vtype==='numarr')? L('[таблица]','[table]') : p.value;
   const chips=props.map((p,i)=>`<div class="propchip"><span class="p">${esc(p.path)}</span> = <b>${esc(chipVal(p))}</b>
      <div style="flex:1"></div><button class="small danger" onclick="removeProp(${i})">✕</button></div>`).join('');
   const hasIcon=proto.icon||proto.icons;
@@ -1285,6 +1528,7 @@ function renderProtoPanel(){
 
   let recipeCard='';
   if(S.cat==='recipe') recipeCard=buildRecipeCard(proto);
+  if(S.cat==='technology') recipeCard=buildTechCard(proto);
 
   right.innerHTML=`
     <div class="card"><h3>${esc(ru||S.proto)} <span class="badge">${esc(S.cat)} / ${esc(S.proto)}</span><div class="spacer"></div>
@@ -1510,6 +1754,9 @@ function runSelftest(){
     p.model.chests.push({id:'selftest-mod-sunduk',ru:'Большой сундук',en:'',base:'steel-chest',slots:96});
     p.model.ores.push({id:'selftest-mod-ruda',ru:'Синяя руда',en:'Blue ore',base:'iron-ore',time:2,color:'#3080ff',
       sprite:{file:'blue-ore.png',size:64}});
+    p.model.techs.push({id:'selftest-mod-teh',ru:'Тайная наука',en:'Secret science',base:'automation',count:150,time:45,
+      packs:[{item:'automation-science-pack',count:1},{item:'logistic-science-pack',count:2}],
+      prereqs:['automation'],recipes:['selftest-mod-r-plita']});
     p.model.recipes.push({id:'selftest-mod-r-plita',result:'selftest-mod-plita',count:2,time:1.5,
       ingredients:[{item:'iron-plate',count:5},{item:'coal',count:1}]});
     p.model.clones.push({id:'selftest-mod-boss',category:'unit',base:'big-biter',ru:'Босс',en:'Boss',
@@ -1530,7 +1777,7 @@ function runSelftest(){
 /* ============================================================ старт */
 (async function(){
   S.projects=loadProjects();
-  for(const p of S.projects){ if(p.model && !p.model.ores) p.model.ores=[]; }
+  for(const p of S.projects){ if(p.model){ if(!p.model.ores) p.model.ores=[]; if(!p.model.techs) p.model.techs=[]; } }
   if(S.projects.length) S.sel=S.projects[0].id;
   applyLang();
   try{ const d=await idbGet('dump'); if(d){ S.dump=d; S.dumpKind='custom'; renderDumpChip(); if(S.tab==='game'&&cur()) renderMod(); } }catch(e){}
