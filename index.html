@@ -81,7 +81,9 @@ header h1 span{color:var(--dim);font-weight:400;font-size:13px}
 .formgrid{display:grid;grid-template-columns:auto 1fr;gap:10px 12px;align-items:center}
 .formgrid label{color:var(--dim);white-space:nowrap}
 
-#catwrap{display:flex;gap:14px;height:100%;min-height:0}
+#catwrap{display:flex;flex-direction:column;gap:10px;height:100%;min-height:0}
+#catbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;flex:none}
+#catcols{display:flex;gap:14px;flex:1;min-height:0}
 #catleft{width:330px;flex:none;display:flex;flex-direction:column;gap:8px;min-height:0}
 #protolist{flex:1;overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
 .proto{padding:7px 12px;cursor:pointer;border-bottom:1px solid #00000033}
@@ -109,7 +111,7 @@ header h1 span{color:var(--dim);font-weight:400;font-size:13px}
 .badge{font-size:11px;border:1px solid var(--line);border-radius:6px;padding:1px 7px;color:var(--dim)}
 
 #modal-bg{position:fixed;inset:0;background:#000a;display:none;align-items:center;justify-content:center;z-index:50}
-#modal{background:var(--panel);border:1px solid var(--acc);border-radius:14px;padding:20px 22px;min-width:min(440px,95vw);max-width:min(660px,95vw);max-height:85vh;overflow:auto;box-shadow:0 20px 60px #000c}
+#modal{background:var(--panel);border:1px solid var(--acc);border-radius:14px;padding:20px 22px;min-width:min(440px,95vw);max-width:min(680px,95vw);max-height:85vh;overflow:auto;box-shadow:0 20px 60px #000c}
 #modal h3{color:var(--acc2);margin-bottom:14px}
 #modal .btns{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
 #toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:8px;z-index:99}
@@ -126,18 +128,19 @@ kbd{background:#171310;border:1px solid var(--line);border-radius:5px;padding:1p
 <body>
 
 <header>
-  <h1>⚙ Мастерская модов Factorio <span>— мод без кода, zip на выходе</span></h1>
-  <span id="dumpchip" class="chip">каталог игры не загружен</span>
+  <h1>⚙ Мастерская модов Factorio <span id="tagline">— мод без кода, zip на выходе</span></h1>
+  <span id="dumpchip" class="chip"></span>
   <div class="spacer"></div>
-  <button class="small" onclick="helpModal()">Как пользоваться</button>
+  <button class="small" id="langBtn" title="Switch language">EN</button>
+  <button class="small" id="helpBtn" onclick="helpModal()">Как пользоваться</button>
 </header>
 
 <div id="layout">
   <div id="sidebar">
-    <h2>Мои моды</h2>
+    <h2 id="sbTitle">Мои моды</h2>
     <div id="modlist"></div>
     <button id="btnNew" class="primary" style="margin-top:10px" onclick="newModForm()">+ Создать мод</button>
-    <button class="small" style="margin-top:8px" onclick="$('impProj').click()">Импорт проекта...</button>
+    <button class="small" id="impBtn" style="margin-top:8px" onclick="$('impProj').click()">Импорт проекта...</button>
     <input type="file" id="impProj" accept=".json" style="display:none" onchange="importProject(this)">
   </div>
   <div id="main">
@@ -152,7 +155,8 @@ kbd{background:#171310;border:1px solid var(--line);border-radius:5px;padding:1p
       <ul style="margin:6px 0 6px 22px;line-height:1.7">
         <li>новые предметы, сундуки и рецепты — со своими названиями на русском и английском;</li>
         <li>изменение всего, что есть в игре: здоровье и урон врагов (кусак), характеристики турелей,
-            машин, печей и любых других объектов — с учётом установленных вами модов;</li>
+            машин, печей и любых других объектов — каталог базовой игры уже встроен, а каталог своей
+            игры с модами можно загрузить;</li>
         <li>клоны существующих объектов — свой босс-кусака или усиленная турель;</li>
         <li>свои спрайты и иконки (PNG) прямо в архиве мода;</li>
         <li>общие настройки: скорость бега, размер инвентаря, размер стопок предметов;</li>
@@ -172,21 +176,28 @@ kbd{background:#171310;border:1px solid var(--line);border-radius:5px;padding:1p
 
 <script>
 'use strict';
+/* ============================================================ язык */
+let LANG = localStorage.getItem('fmw.lang') || 'ru';
+function L(ru, en){ return LANG === 'ru' ? ru : en; }
+
 /* ============================================================ данные */
 const LOC = {"technology-name.lubricant":"Смазочная жидкость","item-name.stone-brick":"Каменный блок","technology-name.artillery-shell-speed":"Скорость стрельбы артиллерийскими снарядами","item-name.refined-concrete":"Железобетон","item-name.light-armor":"Лёгкая броня","item-name.flamethrower":"Огнемёт","item-name.heavy-armor":"Тяжёлая броня","entity-name.explosion":"Взрыв","item-name.military-science-pack":"Военный исследовательский пакет","entity-name.small-electric-pole":"Деревянная опора ЛЭП","entity-name.gun-turret":"Пулемётная турель","entity-name.small-ship-wreck":"Небольшие обломки корабля","item-name.linked-chest":"Связанный сундук","item-name.artillery-targeting-remote":"Пульт управления артиллерией","entity-name.boiler":"Бойлер","entity-name.big-artillery-explosion":"Большой артиллерийский взрыв","technology-name.rocketry":"Ракетостроение","item-name.stone":"Камень","item-name.filled-barrel":"__1__ (бочка)","technology-name.speed-module":"Модуль скорости","technology-name.follower-robot-count":"Количество следующих за персонажем дронов","item-name.simple-entity-with-force":"Простой объект с командой","item-name.modular-armor":"Модульная броня","entity-name.crash-site-chest-2":"Капсула","entity-name.behemoth-spitter":"Чудовищный плевака","technology-name.modular-armor":"Модульная броня","entity-name.logistic-chest-storage":"Сундук хранения","item-name.effectivity-module-3":"Модуль эффективности 3","entity-name.cliff":"Скала","entity-name.distractor":"Дрон-приманка","technology-name.electronics":"Электроника","technology-name.electric-engine":"Электродвигатель","item-name.copper-ore":"Медная руда","entity-name.stack-filter-inserter":"Пакетный фильтрующий манипулятор","technology-name.explosives":"Взрывчатые вещества","entity-name.big-worm-turret":"Большой червь","technology-name.artillery-shell-range":"Дальность стрельбы артиллерийскими снарядами","entity-name.express-transport-belt":"Скоростной конвейер","technology-name.power-armor-mk2":"Силовая броня МК2","entity-name.fluid-wagon":"Вагон-цистерна","entity-name.medium-small-remnants":"Небольшие обломки","entity-name.burner-mining-drill":"Твердотопливный бур","entity-name.big-biter":"Большой кусака","item-name.submachine-gun":"Пистолет-пулемёт","item-name.productivity-module":"Модуль продуктивности","item-name.rail-planner":"Рельсовый планировщик","entity-name.car":"Автомобиль","entity-name.defender":"Защитный дрон","entity-name.accumulator":"Аккумуляторный блок","technology-name.personal-laser-defense-equipment":"Персональная лазерная защита","entity-name.steam-turbine":"Паровая турбина","entity-name.big-ship-wreck-3":"Крупные обломки корабля","entity-name.straight-rail":"Прямые рельсы","technology-name.uranium-processing":"Переработка урана","technology-name.inserter-capacity-bonus":"Бонус вместимости манипулятора","entity-name.rock-huge":"Гигантский камень","entity-name.medium-worm-corpse":"Труп среднего червя","equipment-name.battery-mk2-equipment":"Личный аккумулятор MK2","entity-name.character-corpse":"Труп персонажа","item-name.engine-unit":"Твердотопливный двигатель","item-name.uranium-rounds-magazine":"Магазин с урановыми патронами","entity-name.crude-oil":"Сырая нефть","technology-name.belt-immunity-equipment":"Оборудование для игнорирования конвейеров","entity-name.tree-proxy":"Деревья","item-name.landfill":"Отсыпка территории","entity-name.factorio-logo-16tiles":"Логотип Factorio 16 клеток","technology-name.plastics":"Пластмассы","entity-name.simple-entity-with-owner":"Простой объект с владельцем","entity-name.big-ship-wreck-2":"Крупные обломки корабля","item-name.raw-fish":"Сырая рыба","entity-name.small-scorchmark":"Малый кратер","technology-name.worker-robots-storage":"Грузоподъёмность рабочего дрона","entity-name.radar":"Радар","technology-name.automated-rail-transportation":"Автоматизация железных дорог","entity-name.crash-site-spaceship-wreck-medium":"Средние обломки космического корабля","item-name.satellite":"Спутник","entity-name.rail-ending-remnants":"Обломки конца рельс","entity-name.red-desert-rock-big":"Большой красный пустынный камень","recipe-name.kovarex-enrichment-process":"Процесс обогащения Коварекса","entity-name.small-biter-corpse":"Труп небольшого кусаки","item-name.pistol":"Пистолет","entity-name.red-chest":"Красный сундук","item-name.battery":"Аккумулятор","item-name.explosive-uranium-cannon-shell":"Разрывной урановый крупнокалиберный снаряд","recipe-name.empty-crude-oil-barrel":"Опустошить бочку с нефтью","item-name.effectivity-module-2":"Модуль эффективности 2","item-name.iron-ore":"Железная руда","entity-name.land-mine":"Мина","item-name.heat-interface":"Тепловой интерфейс","entity-name.power-switch":"Выключатель питания","entity-name.blood-fountain-hit-spray":"Фонтан крови от ранения","entity-name.big-spitter":"Большой плевака","item-name.sulfur":"Сера","entity-name.pipe-to-ground":"Подземная труба","item-name.green-wire":"Сигнальный зелёный провод","technology-name.gun-turret":"Пулемётная турель","item-name.shotgun-shell":"Патроны для дробовика","item-name.solar-panel":"Солнечная батарея","technology-name.steel-axe":"Стальной инструмент","entity-name.rocket":"Ракета","item-name.chemical-science-pack":"Химический исследовательский пакет","equipment-name.belt-immunity-equipment":"Оборудование игнорирования конвейеров","item-name.tank-cannon":"Танковое орудие","entity-name.filter-inserter":"Фильтрующий манипулятор","item-name.automation-science-pack":"Автоматизационный исследовательский пакет","technology-name.coal-liquefaction":"Сжижение угля","entity-name.curved-rail":"Изогнутые рельсы","technology-name.research-speed":"Скорость лабораторий","entity-name.biter-spawner-corpse":"Остатки улья кусак","item-name.shotgun":"Дробовик","fluid-name.crude-oil":"Сырая нефть","entity-name.huge-scorchmark":"Огромный кратер","technology-name.rail-signals":"Железнодорожные сигналы","item-name.rocket-fuel":"Ракетное топливо","entity-name.express-splitter":"Экспресс-разделитель","entity-name.small-lamp":"Фонарь","entity-name.pump":"Помпа","entity-name.electric-mining-drill":"Электрический бур","technology-name.heavy-armor":"Тяжёлая броня","technology-name.laser":"Лазерные технологии","item-name.iron-gear-wheel":"Железная шестерня","entity-name.locomotive":"Локомотив","item-name.stone-path":"Каменная дорога","entity-name.dry-tree":"Сухое дерево","entity-name.simple-entity-with-force":"Простой объект с командой","technology-name.utility-science-pack":"Вспомогательный исследовательский пакет","entity-name.huge-scorchmark-tintable":"Огромный окрашенный кратер","entity-name.tree-stump":"Пень","technology-name.stone-wall":"Каменная стена","entity-name.small-scorchmark-tintable":"Малая окрашенная подпалина","entity-name.crash-site-spaceship":"Космический корабль","entity-name.flying-robot-damaged-explosion":"Эффект повреждения летящего дрона","item-name.uranium-fuel-cell":"Урановый топливный элемент","entity-name.small-spitter-corpse":"Труп малого плеваки","technology-name.circuit-network":"Логическая сеть","entity-name.compilatron":"Компилатрон","entity-name.cargo-wagon":"Грузовой вагон","technology-name.laser-shooting-speed":"Скорость стрельбы лазером","technology-name.automobilism":"Автотранспорт","technology-name.energy-shield-equipment":"Портативный генератор энергетического щита","technology-name.nuclear-fuel-reprocessing":"Переработка ядерного топлива","entity-name.tree":"Дерево","technology-name.electric-energy-distribution":"Электроснабжение","technology-name.productivity-module":"Модуль продуктивности","entity-name.laser-turret":"Лазерная турель","entity-name.big-electric-pole":"Большая опора ЛЭП","item-name.plastic-bar":"Пластмассовый брусок","entity-name.big-biter-corpse":"Труп большого кусаки","technology-name.energy-weapons-damage":"Урон энергетического оружия","entity-name.tile-ghost":"План клетки","item-name.rocket":"Ракета","technology-name.low-density-structure":"Конструкция малой плотности","entity-name.medium-biter-corpse":"Труп среднего кусаки","entity-name.fast-underground-belt":"Быстрый подземный конвейер","entity-name.pipe":"Труба","technology-name.space-science-pack":"Космический исследовательский пакет","technology-name.fusion-reactor-equipment":"Портативный термоядерный реактор","item-name.item-unknown":"Неизвестный предмет","entity-name.massive-explosion":"Массивный взрыв","entity-name.small-cliff":"Маленькая скала","item-name.upgrade-planner":"План улучшения","entity-name.long-handed-inserter":"Длинный манипулятор","technology-name.worker-robots-speed":"Скорость рабочего дрона","item-name.flamethrower-turret":"Огнемётная турель","technology-name.construction-robotics":"Строительная робототехника","item-name.uranium-235":"Уран-235","item-name.rocket-launcher":"Ракетница","item-name.speed-module-3":"Модуль скорости 3","recipe-name.fill-barrel":"Наполнить бочку (__1__)","entity-name.medium-biter":"Средний кусака","item-name.utility-science-pack":"Вспомогательный исследовательский пакет","entity-name.small-worm-corpse":"Труп малого червя","entity-name.tree-dying-proxy":"Загрязнение, поглощённое повреждёнными деревьями","technology-name.fluid-handling":"Транспортировка и хранение жидкостей","technology-name.energy-shield-mk2-equipment":"Портативный генератор энергетического щита MK2","entity-name.big-scorchmark-tintable":"Большая окрашенная подпалина","entity-name.crash-site-fire-flame":"Пламя упавшего корабля","technology-name.nuclear-power":"Ядерная энергия","technology-name.battery-equipment":"Личный аккумулятор","item-name.cluster-grenade":"Кластерная граната","technology-name.military":"Военная промышленность","equipment-name.night-vision-equipment":"Прибор ночного видения","entity-name.blood-explosion-small":"Взрыв крови малый","entity-name.blue-chest":"Синий сундук","technology-name.power-armor":"Силовая броня","entity-name.sand-rock-big":"Большой песчаный камень","entity-name.acid-splash":"Лужа кислоты","entity-name.factorio-logo-11tiles":"Логотип Factorio 11 клеток","entity-name.tree-red":"Красное дерево","item-name.infinity-chest":"Бесконечный сундук","entity-name.substation":"Подстанция","technology-name.rocket-control-unit":"Блок управления ракеты","item-name.low-density-structure":"Конструкция малой плотности","technology-name.flamethrower":"Огнемёт","entity-name.laser-bubble":"Лазерный пузырь","item-name.item-with-tags":"Предмет с метками","item-name.coin":"Монета","technology-name.defender":"Дрон-защитник","technology-name.railway":"Железные дороги","item-name.vehicle-machine-gun":"Пулемётная турель","item-name.item-with-inventory":"Предмет с инвентарём","entity-name.medium-scorchmark-tintable":"Средняя окрашенная подпалина","technology-name.electric-energy-accumulators-1":"Стационарные аккумуляторы","technology-name.production-science-pack":"Производственный исследовательский пакет","item-name.processing-unit":"Процессор","fluid-name.water":"Вода","entity-name.stack-inserter":"Пакетный манипулятор","entity-name.infinity-pipe":"Бесконечная труба","item-name.copper-plate":"Медная плита","item-name.power-armor":"Силовая броня","item-name.firearm-magazine":"Магазин с патронами","entity-name.dry-hairy-tree":"Сухое раскидистое дерево","entity-name.express-loader":"Экспресс-погрузчик","entity-name.blood-fountain":"Фонтан крови","entity-name.iron-ore":"Железная руда","item-name.wood":"Древесина","item-name.explosive-cannon-shell":"Разрывные крупнокалиберные снаряды","entity-name.item-on-ground":"Предмет на земле","item-name.destroyer-capsule":"Капсула с дронами-разрушителями","technology-name.advanced-material-processing":"Продвинутая металлургия","entity-name.assembling-machine-3":"Сборочный автомат 3","entity-name.poison-cloud":"Кислотное облако","item-name.blueprint-book":"Книга чертежей","entity-name.stone":"Камень","item-name.electric-energy-interface":"Интерфейс электроэнергии","entity-name.inserter":"Манипулятор","entity-name.steel-furnace":"Стальная печь","technology-name.tank":"Танк","entity-name.enemy-damaged-explosion":"Эффект повреждения врага","entity-name.programmable-speaker":"Программируемый динамик","technology-name.personal-roboport-mk2-equipment":"Персональная дронстанция MK2","entity-name.fast-transport-belt":"Быстрый конвейер","entity-name.fast-inserter":"Быстрый манипулятор","recipe-name.fill-crude-oil-barrel":"Заполнить бочку нефтью","entity-name.big-scorchmark":"Большой кратер","item-name.lab":"Лаборатория","entity-name.tank":"Танк","entity-name.offshore-pump":"Насос","entity-name.linked-belt":"Связанный конвейер","entity-name.logistic-robot":"Транспортный дрон","item-name.infinity-pipe":"Бесконечная труба","technology-name.solar-energy":"Солнечная энергия","equipment-name.exoskeleton-equipment":"Экзоскелет","entity-name.centrifuge":"Центрифуга","technology-name.advanced-electronics":"Продвинутая электроника","entity-name.dead-grey-trunk":"Мёртвый серый ствол","item-name.distractor-capsule":"Капсула с дронами приманками","item-name.effectivity-module":"Модуль эффективности","item-name.steel-plate":"Стальная балка","recipe-name.heavy-oil-cracking":"Переработка мазута в дизельное топливо","technology-name.fast-inserter":"Быстрый манипулятор","entity-name.spitter-spawner-corpse":"Остатки улья плевак","entity-name.big-spitter-corpse":"Труп большого плеваки","entity-name.loader":"Погрузчик","entity-name.steel-chest":"Стальной сундук","entity-name.fish":"Рыба","item-name.repair-pack":"Ремонтный комплект","item-name.pollution":"Загрязнение","entity-name.beacon":"Маяк","entity-name.destroyer":"Дрон разрушитель","item-name.space-science-pack":"Космический исследовательский пакет","item-name.power-armor-mk2":"Силовая броня МК2","entity-name.crash-site-chest-1":"Капсула","technology-name.refined-flammables":"Переработанное горючее","entity-name.big-worm-corpse":"Труп большого червя","item-name.burner-generator":"Твердотопливный генератор","entity-name.factorio-logo-22tiles":"Логотип Factorio 22 клетки","entity-name.oil-refinery":"Нефтеперерабатывающий завод","technology-name.artillery":"Артиллерия","entity-name.solar-panel":"Солнечная панель","entity-name.spidertron-military-target":"Военная цель паукотрона","item-name.discharge-defense-remote":"Пульт электроразрядной защиты","item-name.productivity-module-2":"Модуль продуктивности 2","entity-name.storage-tank":"Резервуар","entity-name.heat-pipe":"Тепловая труба","item-name.flamethrower-ammo":"Топливо для огнемёта","entity-name.gate":"Ворота","entity-name.spark-explosion":"Искрящийся взрыв","item-name.grenade":"Граната","entity-name.copper-ore":"Медная руда","entity-name.small-spitter":"Малый плевака","item-name.used-up-uranium-fuel-cell":"Отработанный урановый топливный элемент","technology-name.rocket-silo":"Ракетная шахта","item-name.red-wire":"Сигнальный красный провод","entity-name.medium-ship-wreck":"Средние обломки корабля","recipe-name.empty-filled-barrel":"Опустошить бочку (__1__)","entity-name.behemoth-worm-corpse":"Труп чудовищного червя","equipment-name.energy-shield-mk2-equipment":"Энергетический щит MK2","recipe-name.basic-oil-processing":"Базовая переработка нефти","recipe-name.coal-liquefaction":"Сжижение угля","entity-name.crash-site-spaceship-wreck-big":"Большие обломки космического корабля","technology-name.logistics":"Логистика","entity-name.electric-energy-interface":"Интерфейс электроэнергии","technology-name.cliff-explosives":"Взрывчатка для скал","item-name.artillery-wagon-cannon":"Артиллерийская пушка","technology-name.chemical-science-pack":"Химический исследовательский пакет","technology-name.automation":"Автоматизация","item-name.simple-entity-with-owner":"Простой объект с владельцем","fluid-name.lubricant":"Смазочная жидкость","entity-name.wooden-chest":"Деревянный сундук","entity-name.rock-damaged-explosion":"Эффект повреждения камня","item-name.uranium-238":"Уран-238","item-name.crude-oil-barrel":"Бочка нефти","entity-name.heat-interface":"Тепловой интерфейс","item-name.deconstruction-planner":"План сноса","technology-name.stack-inserter":"Пакетный манипулятор","entity-name.market":"Рынок","item-name.slowdown-capsule":"Замедляющая капсула","technology-name.landfill":"Отсыпка территории","entity-name.spidertron":"Паукотрон","entity-name.dead-tree-desert":"Мёртвое дерево - пустыня","entity-name.big-explosion":"Большой взрыв","entity-name.crash-site-spaceship-wreck-small":"Малые обломки космического корабля","entity-name.uranium-ore":"Урановая руда","technology-name.steel-processing":"Производство стали","item-name.electric-engine-unit":"Электродвигатель","technology-name.night-vision-equipment":"Прибор ночного видения","entity-name.assembling-machine-1":"Сборочный автомат 1","entity-name.blood-explosion-big":"Взрыв крови большой","entity-name.red-desert-rock-huge":"Огромный красный пустынный камень","item-name.copper-cable":"Медный кабель","entity-name.behemoth-spitter-corpse":"Труп чудовищного плеваки","entity-name.deconstructible-tile-proxy":"Разрушаемая клетка","item-name.speed-module":"Модуль скорости","item-name.hazard-concrete":"Бетон с разметкой опасности","entity-name.spitter-spawner":"Улей плевак","entity-name.medium-electric-pole":"Средняя опора ЛЭП","entity-name.dead-dry-hairy-tree":"Мёртвое сухое раскидистое дерево","entity-name.steam-engine":"Паровой двигатель","item-name.belt-immunity-equipment":"Оборудование для игнорирования конвейеров","entity-name.rail-chain-signal":"Проходной ж/д светофор","recipe-name.light-oil-cracking":"Переработка дизельного топлива в попутный нефтяной газ","technology-name.distractor":"Дрон-приманка","entity-name.fast-splitter":"Быстрый разделитель","entity-name.flamethrower-turret":"Огнемётная турель","entity-name.uranium-cannon-shell-explosion":"Взрыв уранового крупнокалиберного снаряда","entity-name.medium-remnants":"Средние обломки","item-name.blueprint":"Чертёж","technology-name.logistic-system":"Логистическая система","entity-name.chemical-plant":"Химический завод","entity-name.stone-wall":"Стена","item-name.spidertron-rocket-launcher":"Ракетница паукотрона","technology-name.robotics":"Робототехника","item-name.coal":"Уголь","item-name.iron-stick":"Железный прут","technology-name.effect-transmission":"Передача эффектов","entity-name.roboport":"Дронстанция","entity-name.small-worm-turret":"Небольшой червь","entity-name.copper-cable":"Медный провод","entity-name.medium-explosion":"Средний взрыв","equipment-name.energy-shield-equipment":"Энергетический щит","item-name.empty-barrel":"Пустая бочка","item-name.defender-capsule":"Капсула с дронами защитниками","entity-name.train-stop":"Железнодорожная станция","fluid-name.sulfuric-acid":"Серная кислота","entity-name.water-splash":"Всплеск воды","entity-name.rocket-silo":"Ракетная шахта","technology-name.toolbelt":"Пояс для инструментов","entity-name.pumpjack":"Нефтяная вышка","entity-name.blood-explosion-huge":"Взрыв крови огромный","item-name.logistic-science-pack":"Логистический исследовательский пакет","item-name.tank-machine-gun":"Бортовой пулемёт","entity-name.entity-unknown":"Неизвестный объект","technology-name.exoskeleton-equipment":"Оборудование экзоскелета","entity-name.lab":"Лаборатория","item-name.artillery-shell":"Артиллерийский снаряд","technology-name.military-science-pack":"Военный исследовательский пакет","entity-name.spark-explosion-higher":"Большой искрящийся взрыв","technology-name.advanced-oil-processing":"Продвинутая переработка нефти","technology-name.logistic-science-pack":"Логистический исследовательский пакет","item-name.rocket-control-unit":"Блок управления ракеты","item-name.piercing-shotgun-shell":"Бронебойные патроны для дробовика","item-name.flying-robot-frame":"Каркас дрона","item-name.rocket-part":"Деталь ракеты","technology-name.mining-productivity":"Продуктивность добычи","technology-name.concrete":"Бетон","technology-name.kovarex-enrichment-process":"Процесс обогащения им. Коварекса","technology-name.flammables":"Горючие жидкости","item-name.uranium-ore":"Урановая руда","technology-name.land-mine":"Мины","entity-name.behemoth-worm-turret":"Чудовищный червь","entity-name.fast-loader":"Быстрый погрузчик","item-name.piercing-rounds-magazine":"Магазин с бронебойными патронами","entity-name.nuclear-reactor":"Ядерный реактор","item-name.nuclear-fuel":"Ядерное топливо","entity-name.behemoth-biter-corpse":"Труп чудовищного кусаки","technology-name.rocket-fuel":"Ракетное топливо","entity-name.space-module-wreck":"Обломки спасательной капсулы","entity-name.electric-furnace":"Электрическая печь","entity-name.express-underground-belt":"Подземный экспресс-конвейер","entity-name.blood-fountain-big":"Большой фонтан крови","equipment-name.personal-laser-defense-equipment":"Персональная лазерная защита","entity-name.small-remnants":"Малые обломки","recipe-name.advanced-oil-processing":"Продвинутая переработка нефти","technology-name.engine":"Двигатель","entity-name.fire-flame":"Огонь","item-name.uranium-cannon-shell":"Урановый крупнокалиберный снаряд","recipe-name.uranium-processing":"Переработка урана","entity-name.logistic-chest-active-provider":"Сундук активного снабжения","item-name.artillery-turret":"Артиллерийское орудие","entity-name.medium-scorchmark":"Средний кратер","technology-name.personal-roboport-equipment":"Персональная дронстанция","technology-name.stronger-explosives":"Усиленная взрывчатка","item-name.atomic-bomb":"Атомная бомба","technology-name.explosive-rocketry":"Взрывные боеголовки","entity-name.logistic-chest-passive-provider":"Сундук пассивного снабжения","item-name.cut-paste-tool":"Инструмент вырезания","entity-name.medium-worm-turret":"Средний червь","item-name.laser-turret":"Лазерная турель","item-name.cannon-shell":"Крупнокалиберные снаряды","item-name.selection-tool":"Инструмент выделения","entity-name.artillery-wagon":"Артиллерийский вагон","entity-name.rock-big":"Большой валун","entity-name.decider-combinator":"Сравнивающий комбинатор","item-name.item-with-label":"Предмет с меткой","technology-name.battery":"Аккумулятор","technology-name.battery-mk2-equipment":"Личный аккумулятор MK2","entity-name.cutscene-gun-turret":"Пулемётная турель","entity-name.iron-chest":"Железный сундук","entity-name.underground-belt":"Подземный конвейер","item-name.productivity-module-3":"Модуль продуктивности 3","entity-name.logistic-chest-requester":"Сундук запроса","entity-name.constant-combinator":"Постоянный комбинатор","item-name.fish":"Рыба","equipment-name.fusion-reactor-equipment":"Портативный термоядерный реактор","fluid-name.fluid-unknown":"Неизвестная жидкость","technology-name.sulfur-processing":"Обработка серы","fluid-name.heavy-oil":"Мазут","entity-name.big-remnants":"Большие обломки","entity-name.behemoth-biter":"Чудовищный кусака","entity-name.linked-chest":"Связанный сундук","entity-name.item-request-proxy":"Слот запроса предмета","equipment-name.solar-panel-equipment":"Портативная солнечная панель","technology-name.logistic-robotics":"Логистическая робототехника","entity-name.small-biter":"Небольшой кусака","entity-name.transport-belt":"Конвейер","technology-name.weapon-shooting-speed":"Скорострельность оружия","entity-name.water-well-pump":"Водяной насос","recipe-name.nuclear-fuel-reprocessing":"Переработка ядерного топлива","equipment-name.discharge-defense-equipment":"Электроразрядная защита","entity-name.biter-spawner":"Улей кусак","entity-name.big-ship-wreck-1":"Крупные обломки корабля","equipment-name.battery-equipment":"Личный аккумулятор","entity-name.explosion-hit":"Удар от взрыва","technology-name.effectivity-module":"Модуль эффективности","item-name.copy-paste-tool":"Инструмент копирования","entity-name.coal":"Уголь","technology-name.laser-turret":"Лазерная турель","item-name.speed-module-2":"Модуль скорости 2","item-name.combat-shotgun":"Боевой дробовик","item-name.production-science-pack":"Производственный исследовательский пакет","item-name.solid-fuel":"Твёрдое топливо","item-name.electronic-circuit":"Электросхема","technology-name.optics":"Оптика","fluid-name.light-oil":"Дизельное топливо","technology-name.fluid-wagon":"Вагон-цистерна","item-name.advanced-circuit":"Улучшенная электросхема","item-name.cliff-explosives":"Взрывчатка для скал","entity-name.ground-explosion":"Взрыв на поверхности","technology-name.oil-processing":"Переработка нефти","entity-name.logistic-chest-buffer":"Буферный сундук","entity-name.arithmetic-combinator":"Арифметический комбинатор","technology-name.destroyer":"Дрон-разрушитель","item-name.rail":"Рельсы","entity-name.splitter":"Разделитель","entity-name.wall-damaged-explosion":"Эффект повреждения стены","technology-name.atomic-bomb":"Атомная бомба","entity-name.tile-proxy":"Клетки","equipment-name.personal-roboport-equipment":"Персональная дронстанция","equipment-name.personal-roboport-mk2-equipment":"Персональная дронстанция MK2","entity-name.green-coral":"Зелёный коралл","technology-name.spidertron":"Паукотрон","entity-name.entity-ghost":"План объекта","entity-name.burner-generator":"Твердотопливный генератор","technology-name.solar-panel-equipment":"Портативная солнечная панель","entity-name.burner-inserter":"Твёрдотопливный манипулятор","item-name.explosives":"Взрывчатка","entity-name.character":"Персонаж","entity-name.heat-exchanger":"Теплообменник","entity-name.assembling-machine-2":"Сборочный автомат 2","entity-name.loader-1x1":"Погрузчик 1x1","entity-name.stone-furnace":"Каменная печь","item-name.tank-flamethrower":"Танковый огнемёт","entity-name.medium-spitter":"Средний плевака","item-name.concrete":"Бетон","entity-name.artillery-turret":"Артиллерийское орудие","entity-name.rail-signal":"Ж/д светофор","entity-name.construction-robot":"Строительный дрон","entity-name.player-port":"Точка возрождения игрока","technology-name.discharge-defense-equipment":"Электроразрядная защита","item-name.iron-plate":"Железная плита","item-name.poison-capsule":"Кислотная граната","entity-name.medium-spitter-corpse":"Труп среднего плеваки","technology-name.gate":"Ворота","fluid-name.steam":"Пар","item-name.spidertron-remote":"Пульт управления паукотроном","item-name.explosive-rocket":"Разрывная ракета","fluid-name.petroleum-gas":"Попутный нефтяной газ","technology-name.uranium-ammo":"Урановые боеприпасы","item-name.refined-hazard-concrete":"Железобетон с разметкой опасности","technology-name.modules":"Модули","entity-name.tree-brown":"Коричневое дерево","entity-name.spidertron-leg":"Нога паукотрона","entity-name.grenade-explosion":"Взрыв гранаты","entity-name.infinity-chest":"Бесконечный сундук","technology-name.physical-projectile-damage":"Огнестрельный урон","technology-name.braking-force":"Сила торможения","entity-name.1x2-remnants":"Развалины 1x2"};
-const S = { projects:[], sel:null, dump:null, tab:'content', cat:'unit', search:'', proto:null, target:null, pendingOpen:null };
+const S = { projects:[], sel:null, dump:null, dumpKind:null, tab:'content', cat:'unit', search:'', proto:null, target:null, pendingOpen:null };
+let vanillaState = 'idle'; // idle | loading | failed
 
 const BASE_ITEMS = [
- ['iron-plate','Железная пластина'],['copper-plate','Медная пластина'],['steel-plate','Стальная пластина'],
- ['iron-gear-wheel','Шестерня'],['iron-stick','Железный стержень'],['copper-cable','Медный провод'],
- ['electronic-circuit','Электронная плата'],['advanced-circuit','Улучшенная плата'],['processing-unit','Процессор'],
- ['wood','Древесина'],['coal','Уголь'],['stone','Камень'],['stone-brick','Каменный кирпич'],
- ['iron-ore','Железная руда'],['copper-ore','Медная руда'],['plastic-bar','Пластик'],['sulfur','Сера'],
- ['battery','Аккумулятор'],['explosives','Взрывчатка'],['engine-unit','Двигатель'],
- ['electric-engine-unit','Электродвигатель'],['flying-robot-frame','Каркас дрона'],
- ['low-density-structure','Легковесная структура'],['rocket-fuel','Ракетное топливо'],
- ['pipe','Труба'],['repair-pack','Ремкомплект'],['landfill','Насыпь']];
-const BASE_CHESTS = [['wooden-chest','Деревянный сундук'],['iron-chest','Железный сундук'],['steel-chest','Стальной сундук']];
+ ['iron-plate','Железная пластина','Iron plate'],['copper-plate','Медная пластина','Copper plate'],
+ ['steel-plate','Стальная пластина','Steel plate'],['iron-gear-wheel','Шестерня','Iron gear wheel'],
+ ['iron-stick','Железный стержень','Iron stick'],['copper-cable','Медный провод','Copper cable'],
+ ['electronic-circuit','Электронная плата','Electronic circuit'],['advanced-circuit','Улучшенная плата','Advanced circuit'],
+ ['processing-unit','Процессор','Processing unit'],['wood','Древесина','Wood'],['coal','Уголь','Coal'],
+ ['stone','Камень','Stone'],['stone-brick','Каменный кирпич','Stone brick'],['iron-ore','Железная руда','Iron ore'],
+ ['copper-ore','Медная руда','Copper ore'],['plastic-bar','Пластик','Plastic bar'],['sulfur','Сера','Sulfur'],
+ ['battery','Аккумулятор','Battery'],['explosives','Взрывчатка','Explosives'],['engine-unit','Двигатель','Engine unit'],
+ ['electric-engine-unit','Электродвигатель','Electric engine unit'],['flying-robot-frame','Каркас дрона','Flying robot frame'],
+ ['low-density-structure','Легковесная структура','Low density structure'],['rocket-fuel','Ракетное топливо','Rocket fuel'],
+ ['pipe','Труба','Pipe'],['repair-pack','Ремкомплект','Repair pack'],['landfill','Насыпь','Landfill']];
+const BASE_CHESTS = [['wooden-chest','Деревянный сундук','Wooden chest'],['iron-chest','Железный сундук','Iron chest'],['steel-chest','Стальной сундук','Steel chest']];
 const CATRU = {
  'item':'Предметы','ammo':'Боеприпасы','gun':'Оружие','armor':'Броня','capsule':'Капсулы/гранаты','module':'Модули',
  'tool':'Научные пакеты','fluid':'Жидкости','recipe':'Рецепты','technology':'Технологии',
@@ -201,6 +212,20 @@ const CATRU = {
  'wall':'Стены','gate':'Ворота','land-mine':'Мины','roboport':'Робопорты','logistic-robot':'Логистические дроны',
  'construction-robot':'Строительные дроны','rocket-silo':'Ракетные шахты','pump':'Насосы','offshore-pump':'Водозаборы',
  'beacon':'Маяки','lamp':'Лампы','projectile':'Снаряды','tree':'Деревья','resource':'Залежи ресурсов','cliff':'Скалы'};
+const CATEN = {
+ 'item':'Items','ammo':'Ammo','gun':'Guns','armor':'Armor','capsule':'Capsules','module':'Modules',
+ 'tool':'Science packs','fluid':'Fluids','recipe':'Recipes','technology':'Technologies',
+ 'unit':'Enemies (biters)','unit-spawner':'Spawners','turret':'Worm turrets',
+ 'ammo-turret':'Gun turrets','electric-turret':'Laser turrets','fluid-turret':'Flame turrets',
+ 'artillery-turret':'Artillery','character':'Character','car':'Cars/tanks','spider-vehicle':'Spidertrons',
+ 'locomotive':'Locomotives','cargo-wagon':'Cargo wagons','assembling-machine':'Assembling machines','furnace':'Furnaces',
+ 'mining-drill':'Mining drills','inserter':'Inserters','transport-belt':'Belts','underground-belt':'Underground belts',
+ 'splitter':'Splitters','container':'Chests','logistic-container':'Logistic chests','storage-tank':'Storage tanks',
+ 'pipe':'Pipes','electric-pole':'Power poles','solar-panel':'Solar panels','accumulator':'Accumulators',
+ 'boiler':'Boilers','generator':'Steam engines','reactor':'Reactors','lab':'Labs','radar':'Radars',
+ 'wall':'Walls','gate':'Gates','land-mine':'Land mines','roboport':'Roboports','logistic-robot':'Logistic robots',
+ 'construction-robot':'Construction robots','rocket-silo':'Rocket silos','pump':'Pumps','offshore-pump':'Offshore pumps',
+ 'beacon':'Beacons','lamp':'Lamps','projectile':'Projectiles','tree':'Trees','resource':'Resources','cliff':'Cliffs'};
 const TRANSLIT = {'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'e','ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f','х':'h','ц':'c','ч':'ch','ш':'sh','щ':'sch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya'};
 const DUMPER_LUA = `local function esc(s)
   s = s:gsub('\\\\','\\\\\\\\'):gsub('"','\\\\"'):gsub('\\n','\\\\n'):gsub('\\r','\\\\r'):gsub('\\t','\\\\t')
@@ -259,7 +284,26 @@ log('FMODDONE')`;
 
 /* ============================================================ базовое */
 const $ = id => document.getElementById(id);
-const LANDING = document.getElementById('content').innerHTML;
+const LANDING_RU = document.getElementById('content').innerHTML;
+const LANDING_EN = `<div class="card" style="max-width:780px;margin:24px auto">
+  <h3>Make a Factorio mod — no coding required</h3>
+  <p>Mod Workshop is a free online mod builder for Factorio. Everything is done with simple forms
+  right in your browser, and you get a ready-to-use mod zip — just drop it into the game's mods folder.</p>
+  <p style="margin-top:8px"><b>What it can do:</b></p>
+  <ul style="margin:6px 0 6px 22px;line-height:1.7">
+    <li>new items, chests and recipes — with names in English and Russian;</li>
+    <li>change anything that exists in the game: biter health and damage, turret, vehicle and furnace
+        stats — the base-game catalog is built in, and you can upload the catalog of your own modded game;</li>
+    <li>clones of existing objects — your own boss biter or a beefed-up turret;</li>
+    <li>custom sprites and icons (PNG) packed right into the mod;</li>
+    <li>global tweaks: running speed, inventory size, stack sizes;</li>
+    <li>supports Factorio 1.1 and 2.x, ru + en locales generated automatically.</li>
+  </ul>
+  <p>Projects live in your browser and are never sent anywhere. Create a mod, fill it up, download
+  the zip — and put it into <b>%appdata%\\Factorio\\mods</b> (in game: Mods → Open mod folder).</p>
+  <div style="margin-top:14px"><button class="primary" onclick="newModForm()">+ Create mod</button></div>
+  <div class="hint" style="margin-top:12px">Already have a project? "Import project…" at the bottom left.</div>
+</div>`;
 const esc = s => String(s??'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function toast(msg, err){ const t=document.createElement('div'); t.className='toast'+(err?' err':''); t.textContent=msg;
   $('toasts').appendChild(t); setTimeout(()=>t.remove(), err?6000:3500); }
@@ -269,12 +313,15 @@ function slug(s){ let out=''; for(const ch of String(s).toLowerCase()){
 function cur(){ return S.projects.find(p=>p.id===S.sel); }
 function uniqueId(base){ const M=cur().model; const ids=[...M.items,...M.chests,...M.recipes,...M.clones].map(x=>x.id);
   let id=base,i=2; while(ids.includes(id)) id=base+'-'+(i++); return id; }
-function locName(name){ for(const sec of ['entity-name','item-name','fluid-name','equipment-name','recipe-name','technology-name']){
-  const v=LOC[sec+'.'+name]; if(v) return v; } return null; }
+function locName(name){ if(LANG!=='ru') return null;
+  for(const sec of ['entity-name','item-name','fluid-name','equipment-name','recipe-name','technology-name']){
+    const v=LOC[sec+'.'+name]; if(v) return v; } return null; }
 function labelOf(id){ const M=cur().model;
   for(const x of [...M.items,...M.chests,...M.clones]) if(x.id===id) return x.ru;
-  for(const [i,r] of BASE_ITEMS) if(i===id) return r; for(const [i,r] of BASE_CHESTS) if(i===id) return r;
+  for(const b of BASE_ITEMS) if(b[0]===id) return L(b[1],b[2]);
+  for(const b of BASE_CHESTS) if(b[0]===id) return L(b[1],b[2]);
   return locName(id)||id; }
+function catLabel(k){ const m = LANG==='ru'? CATRU : CATEN; return m[k]? m[k]+' — '+k : k; }
 function openModal(html){ $('modal').innerHTML = html; $('modal-bg').style.display='flex'; }
 function closeModal(){ $('modal-bg').style.display='none'; }
 $('modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg') closeModal(); });
@@ -282,7 +329,8 @@ $('modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg') closeM
 /* ============================================================ хранение */
 function persist(){
   try{ localStorage.setItem('fmw.projects', JSON.stringify(S.projects)); }
-  catch(e){ toast('Браузер не смог сохранить проект (слишком много данных?). Сделайте «Экспорт проекта», чтобы не потерять работу.', true); }
+  catch(e){ toast(L('Браузер не смог сохранить проект (слишком много данных?). Сделайте «Экспорт проекта», чтобы не потерять работу.',
+                    'Browser could not save the project (too much data?). Use "Export project" so you do not lose your work.'), true); }
 }
 function loadProjects(){
   try{ return JSON.parse(localStorage.getItem('fmw.projects'))||[]; }catch(e){ return []; }
@@ -310,10 +358,10 @@ function fmtVal(p){
 function ing11(g){ return '{"'+g.item+'", '+luaNum(g.count)+'}'; }
 function ing20(g){ return '{type="item", name="'+g.item+'", amount='+luaNum(g.count)+'}'; }
 function genDataLua(p){
-  const M=p.model, v2=(p.fver!=='1.1'), L=[];
-  L.push('-- Файл создан Мастерской модов Factorio (mod workshop). Правки вручную будут перезаписаны.','');
+  const M=p.model, v2=(p.fver!=='1.1'), out=[];
+  out.push('-- Файл создан Мастерской модов Factorio (mod workshop). Правки вручную будут перезаписаны.','');
   for(const it of M.items){
-    L.push('do',
+    out.push('do',
       '  local p = table.deepcopy(data.raw["item"]["'+it.base+'"])',
       '  p.name = "'+it.id+'"',
       '  p.stack_size = '+luaNum(it.stack),
@@ -330,7 +378,7 @@ function genDataLua(p){
       : ['  local rec = {','    type = "recipe",','    name = "'+ch.id+'",','    enabled = true,',
          '    energy_required = 1,','    ingredients = { '+ing11({item:ch.base,count:1})+', '+ing11({item:'iron-plate',count:5})+' },',
          '    result = "'+ch.id+'"','  }'];
-    L.push('do',
+    out.push('do',
       '  local ent = table.deepcopy(data.raw["container"]["'+ch.base+'"])',
       '  ent.name = "'+ch.id+'"',
       '  ent.minable.result = "'+ch.id+'"',
@@ -344,20 +392,20 @@ function genDataLua(p){
   }
   for(const rc of M.recipes){
     const ings = rc.ingredients.map(v2?ing20:ing11).join(', ');
-    L.push('data:extend({{','  type = "recipe",','  name = "'+rc.id+'",','  enabled = true,',
+    out.push('data:extend({{','  type = "recipe",','  name = "'+rc.id+'",','  enabled = true,',
       '  energy_required = '+luaNum(rc.time)+',','  ingredients = { '+ings+' },');
-    if(v2) L.push('  results = { {type="item", name="'+rc.result+'", amount='+luaNum(rc.count)+'} }');
-    else L.push('  result = "'+rc.result+'",','  result_count = '+luaNum(rc.count));
-    L.push('}})','');
+    if(v2) out.push('  results = { {type="item", name="'+rc.result+'", amount='+luaNum(rc.count)+'} }');
+    else out.push('  result = "'+rc.result+'",','  result_count = '+luaNum(rc.count));
+    out.push('}})','');
   }
   for(const cl of M.clones){
-    L.push('pcall(function()',
+    out.push('pcall(function()',
       '  local p = table.deepcopy(data.raw["'+escLua(cl.category)+'"]["'+escLua(cl.base)+'"])',
       '  p.name = "'+cl.id+'"','  p.localised_name = nil','  p.localised_description = nil');
-    for(const pr of cl.props) if(PATH_RX.test(pr.path)) L.push('  p.'+pr.path+' = '+fmtVal(pr));
-    L.push('  data:extend({p})','end)','');
+    for(const pr of cl.props) if(PATH_RX.test(pr.path)) out.push('  p.'+pr.path+' = '+fmtVal(pr));
+    out.push('  data:extend({p})','end)','');
   }
-  return L.join('\n').trimEnd()+'\n';
+  return out.join('\n').trimEnd()+'\n';
 }
 function genFixes(p){
   const M=p.model, tw=M.tweaks, T=[];
@@ -369,15 +417,18 @@ function genFixes(p){
     if(PATH_RX.test(pr.path))
       T.push('pcall(function() data.raw["'+escLua(ov.category)+'"]["'+escLua(ov.name)+'"].'+pr.path+' = '+fmtVal(pr)+' end)');
   if(!T.length) return null;
-  return '-- Правки игры из Мастерской модов (применяются после загрузки всех модов).\n\n'+T.join('\n')+'\n';
+  return '-- Правки игры из конструктора (применяются после загрузки всех модов).\n\n'+T.join('\n')+'\n';
 }
 function enLabel(p,id){ const M=p.model;
   for(const x of [...M.items,...M.chests,...M.clones]) if(x.id===id) return x.en||x.ru;
   return id.replace(/-/g,' '); }
 function ruLabelG(p,id){ const M=p.model;
   for(const x of [...M.items,...M.chests,...M.clones]) if(x.id===id) return x.ru;
-  for(const [i,r] of BASE_ITEMS) if(i===id) return r; for(const [i,r] of BASE_CHESTS) if(i===id) return r;
-  return locName(id)||id; }
+  for(const b of BASE_ITEMS) if(b[0]===id) return b[1];
+  for(const b of BASE_CHESTS) if(b[0]===id) return b[1];
+  for(const sec of ['entity-name','item-name','fluid-name','equipment-name','recipe-name','technology-name']){
+    const v=LOC[sec+'.'+id]; if(v) return v; }
+  return id; }
 function genLocale(p,lang){
   const M=p.model, item=[], ent=[], rec=[];
   const pick=(x)=> lang==='ru'? x.ru : (x.en||x.ru);
@@ -463,7 +514,8 @@ function downloadBytes(bytes, fname){
 function downloadZip(){
   const p=cur(); if(!p) return;
   downloadBytes(buildModZip(p), p.name+'_'+p.version+'.zip');
-  toast('Zip скачан! Положите его в папку модов Factorio (в игре: Моды → Открыть папку модов).');
+  toast(L('Zip скачан! Положите его в папку модов Factorio (в игре: Моды → Открыть папку модов).',
+          'Zip downloaded! Put it into the Factorio mods folder (in game: Mods → Open mod folder).'));
 }
 function downloadDumper(){
   const enc=new TextEncoder(); const dir='zzzfmoddump_1.0.0/';
@@ -475,37 +527,52 @@ function downloadDumper(){
   ]),'zzzfmoddump_1.0.0.zip');
 }
 
-/* ============================================================ интерфейс: список модов */
+/* ============================================================ интерфейс */
+function applyLang(){
+  document.documentElement.lang = LANG;
+  $('langBtn').textContent = LANG==='ru'? 'EN':'RU';
+  $('tagline').textContent = L('— мод без кода, zip на выходе','— no-code mods, zip output');
+  $('helpBtn').textContent = L('Как пользоваться','How to use');
+  $('sbTitle').textContent = L('Мои моды','My mods');
+  $('btnNew').textContent = L('+ Создать мод','+ Create mod');
+  $('impBtn').textContent = L('Импорт проекта...','Import project...');
+  document.title = L('Создать мод для Factorio без программирования — онлайн-конструктор модов',
+                     'Factorio Mod Workshop — make mods without coding');
+  render();
+}
+$('langBtn').onclick = ()=>{ LANG = LANG==='ru'?'en':'ru'; localStorage.setItem('fmw.lang',LANG); applyLang(); };
+
 function renderSidebar(){
   const el=$('modlist'); el.innerHTML='';
   for(const p of S.projects){
     const d=document.createElement('div');
     d.className='modcard'+(S.sel===p.id?' sel':'');
-    d.innerHTML=`<div class="nm">${esc(p.name)}</div><div class="tt">${esc(p.title)} · v${esc(p.version)} · игра ${esc(p.fver)}</div>`;
+    d.innerHTML=`<div class="nm">${esc(p.name)}</div><div class="tt">${esc(p.title)} · v${esc(p.version)} · ${L('игра','game')} ${esc(p.fver)}</div>`;
     d.onclick=()=>{ S.sel=p.id; S.tab='content'; render(); };
     el.appendChild(d);
   }
-  if(!S.projects.length) el.innerHTML='<div class="hint">Пока нет модов — нажмите «Создать мод»!</div>';
+  if(!S.projects.length) el.innerHTML='<div class="hint">'+L('Пока нет модов — нажмите «Создать мод»!','No mods yet — hit "Create mod"!')+'</div>';
 }
 function render(){ renderSidebar(); renderMod(); renderDumpChip(); }
 function renderDumpChip(){
   const c=$('dumpchip');
-  if(S.dump){ c.className='chip ok'; c.textContent='каталог игры загружен ('+Object.keys(S.dump).length+' категорий)'; }
-  else { c.className='chip'; c.textContent='каталог игры не загружен'; }
+  if(S.dump && S.dumpKind==='custom'){ c.className='chip ok'; c.textContent=L('каталог: ваша игра','catalog: your game'); }
+  else if(S.dump){ c.className='chip ok'; c.textContent=L('каталог: базовая игра','catalog: base game'); }
+  else { c.className='chip'; c.textContent=L('каталог подгрузится во вкладке «Изменить игру»','catalog loads on the "Edit the game" tab'); }
 }
 function renderMod(){
   const head=$('modhead'), tabs=$('tabs'), c=$('content');
   const p=cur();
-  if(!p){ head.innerHTML=''; tabs.innerHTML=''; c.innerHTML=LANDING; return; }
+  if(!p){ head.innerHTML=''; tabs.innerHTML=''; c.innerHTML = LANG==='ru'? LANDING_RU : LANDING_EN; return; }
   head.innerHTML=`
     <span class="title">${esc(p.title||p.name)}</span>
     <span class="sub">${esc(p.name)} · v${esc(p.version)} · Factorio ${esc(p.fver)}</span>
     <div class="spacer"></div>
-    <button class="primary" onclick="downloadZip()">⬇ Скачать zip мода</button>
-    <button onclick="exportProject()">Экспорт проекта</button>
-    <button class="danger" onclick="delProject()">Удалить</button>`;
+    <button class="primary" onclick="downloadZip()">⬇ ${L('Скачать zip мода','Download mod zip')}</button>
+    <button onclick="exportProject()">${L('Экспорт проекта','Export project')}</button>
+    <button class="danger" onclick="delProject()">${L('Удалить','Delete')}</button>`;
   tabs.innerHTML='';
-  for(const [id,name] of [['content','Содержимое'],['game','Изменить игру'],['sprites','Спрайты']]){
+  for(const [id,name] of [['content',L('Содержимое','Contents')],['game',L('Изменить игру','Edit the game')],['sprites',L('Спрайты','Sprites')]]){
     const t=document.createElement('div'); t.className='tab'+(S.tab===id?' sel':''); t.textContent=name;
     t.onclick=()=>{ S.tab=id; renderMod(); }; tabs.appendChild(t);
   }
@@ -514,109 +581,122 @@ function renderMod(){
   else renderSprites();
 }
 function newModForm(){
-  openModal(`<h3>Новый мод</h3><div class="formgrid">
-    <label>Имя (латиницей)</label><input id="fName" placeholder="my-super-mod">
-    <label>Заголовок</label><input id="fTitle" placeholder="Мой супер-мод">
-    <label>Автор</label><input id="fAuthor" placeholder="ник для info.json">
-    <label>Версия игры</label><select id="fVer"><option value="2.0">2.x (текущая)</option><option value="1.1">1.1 (старая)</option></select>
-    </div><div class="hint">Имя мода — только латинские буквы, цифры, дефис и подчёркивание.</div>
-    <div class="btns"><button onclick="closeModal()">Отмена</button><button class="primary" onclick="createMod()">Создать</button></div>`);
+  openModal(`<h3>${L('Новый мод','New mod')}</h3><div class="formgrid">
+    <label>${L('Имя (латиницей)','Name (latin)')}</label><input id="fName" placeholder="my-super-mod">
+    <label>${L('Заголовок','Title')}</label><input id="fTitle" placeholder="${L('Мой супер-мод','My super mod')}">
+    <label>${L('Автор','Author')}</label><input id="fAuthor" placeholder="${L('ник для info.json','nickname for info.json')}">
+    <label>${L('Версия игры','Game version')}</label><select id="fVer"><option value="2.0">${L('2.x (текущая)','2.x (current)')}</option><option value="1.1">${L('1.1 (старая)','1.1 (legacy)')}</option></select>
+    </div><div class="hint">${L('Имя мода — только латинские буквы, цифры, дефис и подчёркивание.','Mod name: latin letters, digits, dash and underscore only.')}</div>
+    <div class="btns"><button onclick="closeModal()">${L('Отмена','Cancel')}</button><button class="primary" onclick="createMod()">${L('Создать','Create')}</button></div>`);
   $('fName').focus();
 }
 function createMod(){
   const name=$('fName').value.trim();
-  if(!/^[A-Za-z0-9_-]+$/.test(name)){ toast('Имя — только латиница, цифры, дефис, подчёркивание.', true); return; }
-  if(S.projects.some(p=>p.name===name)){ toast('Мод с таким именем уже есть.', true); return; }
+  if(!/^[A-Za-z0-9_-]+$/.test(name)){ toast(L('Имя — только латиница, цифры, дефис, подчёркивание.','Name: latin letters, digits, dash, underscore only.'), true); return; }
+  if(S.projects.some(p=>p.name===name)){ toast(L('Мод с таким именем уже есть.','A mod with this name already exists.'), true); return; }
   const p={ id:'p'+Date.now(), name, title:$('fTitle').value.trim()||name, author:$('fAuthor').value.trim()||'anonymous',
     version:'0.1.0', fver:$('fVer').value, model:defModel(), sprites:[] };
   S.projects.push(p); S.sel=p.id; S.tab='content';
   closeModal(); save(render);
-  toast('Мод создан! Наполните его и нажмите «Скачать zip».');
+  toast(L('Мод создан! Наполните его и нажмите «Скачать zip».','Mod created! Fill it up and hit "Download zip".'));
 }
 function delProject(){
   const p=cur(); if(!p) return;
-  if(!confirm('Удалить мод "'+p.name+'" из браузера? Скачанные zip останутся у вас.')) return;
+  if(!confirm(L('Удалить мод "'+p.name+'" из браузера? Скачанные zip останутся у вас.',
+                'Delete mod "'+p.name+'" from the browser? Downloaded zips stay on your disk.'))) return;
   S.projects=S.projects.filter(x=>x.id!==p.id); S.sel=null; save(render);
 }
 function exportProject(){
   const p=cur(); if(!p) return;
   downloadBytes(new TextEncoder().encode(JSON.stringify(p,null,2)), p.name+'-project.json');
-  toast('Проект сохранён в файл — импортируйте его на любом компьютере.');
+  toast(L('Проект сохранён в файл — импортируйте его на любом компьютере.','Project saved to a file — import it on any computer.'));
 }
 async function importProject(inp){
   const f=inp.files[0]; if(!f) return; inp.value='';
   try{
     const p=JSON.parse(await f.text());
-    if(!p.name || !p.model){ toast('Это не файл проекта Мастерской.', true); return; }
+    if(!p.name || !p.model){ toast(L('Это не файл проекта Мастерской.','This is not a Workshop project file.'), true); return; }
     p.id='p'+Date.now();
     while(S.projects.some(x=>x.name===p.name)) p.name=p.name+'-copy';
     S.projects.push(p); S.sel=p.id; save(render);
-    toast('Проект импортирован.');
-  }catch(e){ toast('Не удалось прочитать файл: '+e.message, true); }
+    toast(L('Проект импортирован.','Project imported.'));
+  }catch(e){ toast(L('Не удалось прочитать файл: ','Could not read the file: ')+e.message, true); }
 }
 function helpModal(){
-  openModal(`<h3>Как сделать мод</h3>
+  openModal(LANG==='ru'? `<h3>Как сделать мод</h3>
    <p>1. <b>Создать мод</b> — имя латиницей, заголовок по-русски.</p>
    <p>2. На вкладке <b>«Содержимое»</b> добавьте предметы, сундуки, рецепты и общие настройки.</p>
-   <p>3. Хотите менять само́ игровое (врагов, турели, машины)? Вкладка <b>«Изменить игру»</b> —
-      сначала загрузите туда каталог своей игры (страница подскажет, как получить файл).</p>
+   <p>3. Вкладка <b>«Изменить игру»</b> — правьте врагов, турели, машины: каталог базовой игры уже
+      встроен, а каталог своей игры с модами можно загрузить кнопкой на той же вкладке.</p>
    <p>4. <b>«Скачать zip мода»</b> — готовый архив. Положите его в папку модов:
       в игре <i>Моды → Открыть папку модов</i>, или <kbd>%appdata%\\Factorio\\mods</kbd> на Windows.</p>
    <p class="hint">Проект хранится в вашем браузере. «Экспорт проекта» — резервная копия файлом.
       Сайт ничего никуда не отправляет: всё происходит на вашем компьютере.</p>
-   <div class="btns"><button class="primary" onclick="closeModal()">Понятно</button></div>`);
+   <div class="btns"><button class="primary" onclick="closeModal()">Понятно</button></div>`
+   : `<h3>How to make a mod</h3>
+   <p>1. <b>Create mod</b> — latin name plus a title.</p>
+   <p>2. On the <b>Contents</b> tab add items, chests, recipes and global tweaks.</p>
+   <p>3. The <b>Edit the game</b> tab — tweak biters, turrets, vehicles: the base-game catalog is
+      built in, and you can upload your own modded game's catalog with a button on the same tab.</p>
+   <p>4. <b>Download mod zip</b> — a ready archive. Put it into the mods folder:
+      in game <i>Mods → Open mod folder</i>, or <kbd>%appdata%\\Factorio\\mods</kbd> on Windows.</p>
+   <p class="hint">Projects live in your browser. "Export project" makes a backup file.
+      Nothing is ever uploaded anywhere: everything happens on your computer.</p>
+   <div class="btns"><button class="primary" onclick="closeModal()">Got it</button></div>`);
 }
 
 /* ============================================================ вкладка: содержимое */
 function renderContent(){
   const c=$('content'); const M=cur().model;
   let h='';
-  h+=`<div class="card"><h3>Новое в моде <div class="spacer"></div>
-      <button class="small" onclick="itemForm()">+ Предмет</button>
-      <button class="small" onclick="chestForm()">+ Сундук</button>
-      <button class="small" onclick="recipeForm()">+ Рецепт</button></h3>`;
+  h+=`<div class="card"><h3>${L('Новое в моде','New in this mod')} <div class="spacer"></div>
+      <button class="small" onclick="itemForm()">+ ${L('Предмет','Item')}</button>
+      <button class="small" onclick="chestForm()">+ ${L('Сундук','Chest')}</button>
+      <button class="small" onclick="recipeForm()">+ ${L('Рецепт','Recipe')}</button></h3>`;
   const rows=[];
-  M.items.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">предмет</span><div class="grow">${esc(x.ru)}
-     <div class="sub">стопка ${x.stack}, выглядит как ${esc(labelOf(x.base))}</div></div>
-     <button class="small" onclick="itemForm(${i})">Изменить</button><button class="small danger" onclick="delEntry('items',${i})">✕</button></div>`));
-  M.chests.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">сундук</span><div class="grow">${esc(x.ru)}
-     <div class="sub">${x.slots} ячеек, на основе: ${esc(labelOf(x.base))}</div></div>
-     <button class="small" onclick="chestForm(${i})">Изменить</button><button class="small danger" onclick="delEntry('chests',${i})">✕</button></div>`));
-  M.recipes.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">рецепт</span><div class="grow">${esc(labelOf(x.result))} ×${x.count}
-     <div class="sub">из: ${x.ingredients.map(g=>esc(labelOf(g.item))+' ×'+g.count).join(' + ')}; ${x.time} сек</div></div>
-     <button class="small" onclick="recipeForm(${i})">Изменить</button><button class="small danger" onclick="delEntry('recipes',${i})">✕</button></div>`));
-  M.clones.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">клон</span><div class="grow">${esc(x.ru)}
-     <div class="sub">копия ${esc(locName(x.base)||x.base)} (${esc(x.category)}), изменений: ${x.props.length}</div></div>
-     <button class="small" onclick="openClone(${i})">Свойства</button><button class="small danger" onclick="delEntry('clones',${i})">✕</button></div>`));
-  h+= rows.length? rows.join('') : '<div class="hint">Пока пусто. Добавьте предмет, сундук или рецепт — или загляните на вкладку «Изменить игру».</div>';
+  M.items.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">${L('предмет','item')}</span><div class="grow">${esc(x.ru)}
+     <div class="sub">${L('стопка','stack')} ${x.stack}, ${L('выглядит как','looks like')} ${esc(labelOf(x.base))}</div></div>
+     <button class="small" onclick="itemForm(${i})">${L('Изменить','Edit')}</button><button class="small danger" onclick="delEntry('items',${i})">✕</button></div>`));
+  M.chests.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">${L('сундук','chest')}</span><div class="grow">${esc(x.ru)}
+     <div class="sub">${x.slots} ${L('ячеек, на основе:','slots, based on:')} ${esc(labelOf(x.base))}</div></div>
+     <button class="small" onclick="chestForm(${i})">${L('Изменить','Edit')}</button><button class="small danger" onclick="delEntry('chests',${i})">✕</button></div>`));
+  M.recipes.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">${L('рецепт','recipe')}</span><div class="grow">${esc(labelOf(x.result))} ×${x.count}
+     <div class="sub">${L('из:','from:')} ${x.ingredients.map(g=>esc(labelOf(g.item))+' ×'+g.count).join(' + ')}; ${x.time} ${L('сек','s')}</div></div>
+     <button class="small" onclick="recipeForm(${i})">${L('Изменить','Edit')}</button><button class="small danger" onclick="delEntry('recipes',${i})">✕</button></div>`));
+  M.clones.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">${L('клон','clone')}</span><div class="grow">${esc(x.ru)}
+     <div class="sub">${L('копия','copy of')} ${esc(locName(x.base)||x.base)} (${esc(x.category)}), ${L('изменений:','changes:')} ${x.props.length}</div></div>
+     <button class="small" onclick="openClone(${i})">${L('Свойства','Properties')}</button><button class="small danger" onclick="delEntry('clones',${i})">✕</button></div>`));
+  h+= rows.length? rows.join('') : '<div class="hint">'+L('Пока пусто. Добавьте предмет, сундук или рецепт — или загляните на вкладку «Изменить игру».',
+      'Nothing yet. Add an item, chest or recipe — or check out the "Edit the game" tab.')+'</div>';
   h+='</div>';
-  h+=`<div class="card"><h3>Изменения существующего в игре</h3>`;
+  h+=`<div class="card"><h3>${L('Изменения существующего в игре','Changes to existing game content')}</h3>`;
   const orows=M.overrides.map((o,i)=>`<div class="row"><span class="badge">${esc(o.category)}</span>
-      <div class="grow">${esc(locName(o.name)||o.name)}<div class="sub">${esc(o.name)} — изменено свойств: ${o.props.length}</div></div>
-      <button class="small" onclick="openOverride(${i})">Открыть</button>
+      <div class="grow">${esc(locName(o.name)||o.name)}<div class="sub">${esc(o.name)} — ${L('изменено свойств:','changed properties:')} ${o.props.length}</div></div>
+      <button class="small" onclick="openOverride(${i})">${L('Открыть','Open')}</button>
       <button class="small danger" onclick="delEntry('overrides',${i})">✕</button></div>`);
-  h+= orows.length? orows.join('') : '<div class="hint">Здесь появятся изменённые прототипы (враги, турели, машины...) — меняются на вкладке «Изменить игру».</div>';
+  h+= orows.length? orows.join('') : '<div class="hint">'+L('Здесь появятся изменённые прототипы (враги, турели, машины...) — меняются на вкладке «Изменить игру».',
+      'Modified prototypes (biters, turrets, vehicles...) will show up here — edit them on the "Edit the game" tab.')+'</div>';
   h+='</div>';
   const tw=M.tweaks;
-  h+=`<div class="card"><h3>Общие настройки игры</h3><div class="formgrid">
-    <label>Скорость бега персонажа, %</label><input id="twRun" type="number" min="25" max="1000" value="${tw.run}">
-    <label>Дополнительные ячейки инвентаря</label><input id="twInv" type="number" min="0" max="500" value="${tw.inv}">
-    <label>Размер стопок, множитель</label><input id="twStack" type="number" min="1" max="100" value="${tw.stack}">
-    </div><div class="hint">100%, 0 и 1 — значит «не менять».</div>
-    <div style="margin-top:10px"><button class="primary small" onclick="saveTweaks()">Сохранить настройки</button></div></div>`;
+  h+=`<div class="card"><h3>${L('Общие настройки игры','Global game tweaks')}</h3><div class="formgrid">
+    <label>${L('Скорость бега персонажа, %','Character running speed, %')}</label><input id="twRun" type="number" min="25" max="1000" value="${tw.run}">
+    <label>${L('Дополнительные ячейки инвентаря','Extra inventory slots')}</label><input id="twInv" type="number" min="0" max="500" value="${tw.inv}">
+    <label>${L('Размер стопок, множитель','Stack size multiplier')}</label><input id="twStack" type="number" min="1" max="100" value="${tw.stack}">
+    </div><div class="hint">${L('100%, 0 и 1 — значит «не менять».','100%, 0 and 1 mean "leave unchanged".')}</div>
+    <div style="margin-top:10px"><button class="primary small" onclick="saveTweaks()">${L('Сохранить настройки','Save tweaks')}</button></div></div>`;
   c.innerHTML=h;
 }
 function saveTweaks(){
   const tw=cur().model.tweaks;
   tw.run=+$('twRun').value||100; tw.inv=+$('twInv').value||0; tw.stack=+$('twStack').value||1;
-  save(()=>{ renderContent(); toast('Сохранено.'); });
+  save(()=>{ renderContent(); toast(L('Сохранено.','Saved.')); });
 }
 function delEntry(kind,i){
   const M=cur().model; const x=M[kind][i];
   if(kind==='items'||kind==='chests'||kind==='clones'){
     for(const r of M.recipes){
       if(r.result===x.id || r.ingredients.some(g=>g.item===x.id)){
-        toast('Сначала удалите рецепт, где это используется.', true); return;
+        toast(L('Сначала удалите рецепт, где это используется.','Delete the recipe that uses it first.'), true); return;
       }
     }
   }
@@ -624,45 +704,45 @@ function delEntry(kind,i){
 }
 function choiceOptions(withEmpty, selId){
   const M=cur().model;
-  let o=withEmpty? `<option value="-">— не используется —</option>`:'';
-  const all=[...M.items.map(x=>[x.id,x.ru]),...M.chests.map(x=>[x.id,x.ru]),...BASE_ITEMS];
-  for(const [id,ru] of all) o+=`<option value="${esc(id)}"${id===selId?' selected':''}>${esc(ru)}</option>`;
+  let o=withEmpty? `<option value="-">${L('— не используется —','— not used —')}</option>`:'';
+  const all=[...M.items.map(x=>[x.id,x.ru]),...M.chests.map(x=>[x.id,x.ru]),...BASE_ITEMS.map(b=>[b[0],L(b[1],b[2])])];
+  for(const [id,lbl] of all) o+=`<option value="${esc(id)}"${id===selId?' selected':''}>${esc(lbl)}</option>`;
   return o;
 }
 function itemForm(i){
   const x=i!==undefined? cur().model.items[i]:null;
-  openModal(`<h3>${x?'Изменить предмет':'Новый предмет'}</h3><div class="formgrid">
-    <label>Название (по-русски)</label><input id="fRu" value="${esc(x?.ru||'')}">
-    <label>Название (English)</label><input id="fEn" value="${esc(x?.en||'')}">
-    <label>Выглядит как</label><select id="fBase">${BASE_ITEMS.map(([id,ru])=>`<option value="${id}"${(x?.base||'iron-plate')===id?' selected':''}>${esc(ru)}</option>`).join('')}</select>
-    <label>Размер стопки</label><input id="fStack" type="number" min="1" max="10000" value="${x?.stack||100}">
-    </div><div class="btns"><button onclick="closeModal()">Отмена</button><button class="primary" onclick="itemSave(${i??-1})">Сохранить</button></div>`);
+  openModal(`<h3>${x?L('Изменить предмет','Edit item'):L('Новый предмет','New item')}</h3><div class="formgrid">
+    <label>${L('Название (по-русски)','Name (Russian)')}</label><input id="fRu" value="${esc(x?.ru||'')}">
+    <label>${L('Название (English)','Name (English)')}</label><input id="fEn" value="${esc(x?.en||'')}">
+    <label>${L('Выглядит как','Looks like')}</label><select id="fBase">${BASE_ITEMS.map(b=>`<option value="${b[0]}"${(x?.base||'iron-plate')===b[0]?' selected':''}>${esc(L(b[1],b[2]))}</option>`).join('')}</select>
+    <label>${L('Размер стопки','Stack size')}</label><input id="fStack" type="number" min="1" max="10000" value="${x?.stack||100}">
+    </div><div class="btns"><button onclick="closeModal()">${L('Отмена','Cancel')}</button><button class="primary" onclick="itemSave(${i??-1})">${L('Сохранить','Save')}</button></div>`);
 }
 function itemSave(i){
   const M=cur().model;
-  const ru=$('fRu').value.trim(); if(!ru){ toast('Введите название.',true); return; }
-  const en=$('fEn').value.trim();
+  const ru=$('fRu').value.trim(); const en=$('fEn').value.trim();
+  if(!ru&&!en){ toast(L('Введите название.','Enter a name.'),true); return; }
   const obj={ id:i>=0? M.items[i].id : uniqueId(cur().name.toLowerCase()+'-'+slug(en||ru)),
-    ru,en, base:$('fBase').value, stack:+$('fStack').value||100 };
+    ru:ru||en, en, base:$('fBase').value, stack:+$('fStack').value||100 };
   if(i>=0) M.items[i]=obj; else M.items.push(obj);
   closeModal(); save(renderContent);
 }
 function chestForm(i){
   const x=i!==undefined? cur().model.chests[i]:null;
-  openModal(`<h3>${x?'Изменить сундук':'Новый сундук'}</h3><div class="formgrid">
-    <label>Название (по-русски)</label><input id="fRu" value="${esc(x?.ru||'')}">
-    <label>Название (English)</label><input id="fEn" value="${esc(x?.en||'')}">
-    <label>На основе</label><select id="fBase">${BASE_CHESTS.map(([id,ru])=>`<option value="${id}"${(x?.base||'steel-chest')===id?' selected':''}>${esc(ru)}</option>`).join('')}</select>
-    <label>Ячеек внутри</label><input id="fSlots" type="number" min="1" max="1000" value="${x?.slots||96}">
-    </div><div class="hint">Рецепт создаётся сам: базовый сундук + 5 железных пластин.</div>
-    <div class="btns"><button onclick="closeModal()">Отмена</button><button class="primary" onclick="chestSave(${i??-1})">Сохранить</button></div>`);
+  openModal(`<h3>${x?L('Изменить сундук','Edit chest'):L('Новый сундук','New chest')}</h3><div class="formgrid">
+    <label>${L('Название (по-русски)','Name (Russian)')}</label><input id="fRu" value="${esc(x?.ru||'')}">
+    <label>${L('Название (English)','Name (English)')}</label><input id="fEn" value="${esc(x?.en||'')}">
+    <label>${L('На основе','Based on')}</label><select id="fBase">${BASE_CHESTS.map(b=>`<option value="${b[0]}"${(x?.base||'steel-chest')===b[0]?' selected':''}>${esc(L(b[1],b[2]))}</option>`).join('')}</select>
+    <label>${L('Ячеек внутри','Slots inside')}</label><input id="fSlots" type="number" min="1" max="1000" value="${x?.slots||96}">
+    </div><div class="hint">${L('Рецепт создаётся сам: базовый сундук + 5 железных пластин.','Recipe is auto-generated: base chest + 5 iron plates.')}</div>
+    <div class="btns"><button onclick="closeModal()">${L('Отмена','Cancel')}</button><button class="primary" onclick="chestSave(${i??-1})">${L('Сохранить','Save')}</button></div>`);
 }
 function chestSave(i){
   const M=cur().model;
-  const ru=$('fRu').value.trim(); if(!ru){ toast('Введите название.',true); return; }
-  const en=$('fEn').value.trim();
+  const ru=$('fRu').value.trim(); const en=$('fEn').value.trim();
+  if(!ru&&!en){ toast(L('Введите название.','Enter a name.'),true); return; }
   const obj={ id:i>=0? M.chests[i].id : uniqueId(cur().name.toLowerCase()+'-'+slug(en||ru)),
-    ru,en, base:$('fBase').value, slots:+$('fSlots').value||96 };
+    ru:ru||en, en, base:$('fBase').value, slots:+$('fSlots').value||96 };
   if(i>=0) M.chests[i]=obj; else M.chests.push(obj);
   closeModal(); save(renderContent);
 }
@@ -670,22 +750,22 @@ function recipeForm(i){
   const x=i!==undefined? cur().model.recipes[i]:null;
   const ing=n=>x?.ingredients[n];
   let ingHtml='';
-  for(let n=0;n<4;n++) ingHtml+=`<label>Составляющая ${n+1}</label>
+  for(let n=0;n<4;n++) ingHtml+=`<label>${L('Составляющая','Ingredient')} ${n+1}</label>
     <div style="display:flex;gap:8px"><select id="fIng${n}" style="flex:1">${choiceOptions(true, ing(n)?.item)}</select>
     <input id="fIngN${n}" type="number" min="1" max="10000" value="${ing(n)?.count||1}" style="width:90px"></div>`;
-  openModal(`<h3>${x?'Изменить рецепт':'Новый рецепт'}</h3><div class="formgrid">
-    <label>Что изготавливается</label><select id="fRes">${choiceOptions(false, x?.result)}</select>
-    <label>Сколько штук</label><input id="fCount" type="number" min="1" max="1000" value="${x?.count||1}">
-    <label>Время (сек)</label><input id="fTime" type="number" min="0.1" max="600" step="0.5" value="${x?.time||1}">
+  openModal(`<h3>${x?L('Изменить рецепт','Edit recipe'):L('Новый рецепт','New recipe')}</h3><div class="formgrid">
+    <label>${L('Что изготавливается','What is crafted')}</label><select id="fRes">${choiceOptions(false, x?.result)}</select>
+    <label>${L('Сколько штук','How many')}</label><input id="fCount" type="number" min="1" max="1000" value="${x?.count||1}">
+    <label>${L('Время (сек)','Time (s)')}</label><input id="fTime" type="number" min="0.1" max="600" step="0.5" value="${x?.time||1}">
     ${ingHtml}</div>
-    <div class="btns"><button onclick="closeModal()">Отмена</button><button class="primary" onclick="recipeSave(${i??-1})">Сохранить</button></div>`);
+    <div class="btns"><button onclick="closeModal()">${L('Отмена','Cancel')}</button><button class="primary" onclick="recipeSave(${i??-1})">${L('Сохранить','Save')}</button></div>`);
 }
 function recipeSave(i){
   const M=cur().model;
   const ings=[];
   for(let n=0;n<4;n++){ const v=$('fIng'+n).value; if(v!=='-') ings.push({item:v,count:+$('fIngN'+n).value||1}); }
-  if(!ings.length){ toast('Добавьте хотя бы одну составляющую.',true); return; }
-  if(new Set(ings.map(g=>g.item)).size!==ings.length){ toast('Составляющие не должны повторяться.',true); return; }
+  if(!ings.length){ toast(L('Добавьте хотя бы одну составляющую.','Add at least one ingredient.'),true); return; }
+  if(new Set(ings.map(g=>g.item)).size!==ings.length){ toast(L('Составляющие не должны повторяться.','Ingredients must not repeat.'),true); return; }
   const res=$('fRes').value;
   const obj={ id:i>=0? M.recipes[i].id : uniqueId(cur().name.toLowerCase()+'-r-'+slug(labelOf(res))),
     result:res, count:+$('fCount').value||1, time:+$('fTime').value||1, ingredients:ings };
@@ -706,45 +786,43 @@ function openClone(i){
 }
 
 /* ============================================================ вкладка: изменить игру */
-function renderGame(){
-  const c=$('content');
-  if(!S.dump){
-    c.innerHTML=`<div class="card" style="max-width:680px;margin:30px auto"><h3>Каталог игры</h3>
-      <p>Чтобы менять существующее (врагов, турели, машины — всё), загрузите каталог прототипов
-      <b>вашей</b> игры — тогда Мастерская покажет всё, что в ней есть, включая ваши моды.</p>
-      <p style="margin-top:10px"><b>Как получить файл каталога:</b></p>
-      <p style="margin-top:6px">• <b>Factorio 2.x / 1.1.107+</b>: запустите игру один раз командой<br>
-      <kbd>factorio.exe --dump-data</kbd> — появится файл <kbd>%appdata%\\Factorio\\data-raw-dump.json</kbd>.<br>
-      <span class="hint">В Steam: правый клик по игре → Свойства → Параметры запуска → вписать <b>--dump-data</b>, запустить игру, убрать параметр.</span></p>
-      <p style="margin-top:6px">• <b>Старые версии (1.1)</b>: <button class="small" onclick="downloadDumper()">скачать мод-дампер</button>,
-      положить его в папку модов, запустить игру до главного меню, выйти — и загрузить сюда файл
-      <kbd>%appdata%\\Factorio\\factorio-current.log</kbd>.</p>
-      <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <button class="primary" onclick="$('dumpUp').click()">Загрузить каталог (json или log)</button>
-        <input type="file" id="dumpUp" accept=".json,.log" style="display:none" onchange="uploadDump(this)">
-        <span id="dumpStatus" class="hint"></span>
-      </div></div>`;
-    return;
-  }
-  const cats=Object.keys(S.dump).filter(k=>S.dump[k]&&Object.keys(S.dump[k]).length).sort();
-  const copt=cats.map(k=>`<option value="${esc(k)}"${k===S.cat?' selected':''}>${esc(CATRU[k]? CATRU[k]+' — '+k : k)}</option>`).join('');
-  c.innerHTML=`<div id="catwrap">
-    <div id="catleft">
-      <select id="catSel">${copt}</select>
-      <input id="catSearch" placeholder="Поиск по названию..." value="${esc(S.search)}">
-      <div id="protolist"></div>
-      <button class="small" onclick="resetDump()">Сменить каталог...</button>
+async function loadVanilla(){
+  if(vanillaState==='loading') return;
+  vanillaState='loading';
+  if(S.tab==='game'&&cur()) renderMod();
+  try{
+    const r=await fetch('vanilla-data.json');
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    if(!S.dump){ S.dump=d; S.dumpKind='vanilla'; }
+    vanillaState='idle';
+  }catch(e){ vanillaState='failed'; }
+  renderDumpChip();
+  if(S.tab==='game'&&cur()) renderMod();
+}
+function showCatalogModal(){
+  openModal(`<h3>${L('Каталог вашей игры','Your game catalog')}</h3>
+    <p>${L('Встроенный каталог — это базовая игра (Factorio 1.1). Чтобы менять содержимое своих модов (Space Exploration, Krastorio и т.д.) или получить данные точно своей версии, загрузите каталог своей игры:',
+           'The built-in catalog is the base game (Factorio 1.1). To edit content from your own mods (Space Exploration, Krastorio, etc.) or match your exact game version, upload your game catalog:')}</p>
+    <p style="margin-top:10px">• <b>Factorio 2.x / 1.1.107+</b>: ${L('запустите игру один раз с параметром','launch the game once with the option')}
+    <kbd>--dump-data</kbd> — ${L('появится файл','you will get')} <kbd>%appdata%\\Factorio\\data-raw-dump.json</kbd>.<br>
+    <span class="hint">${L('В Steam: правый клик по игре → Свойства → Параметры запуска → вписать --dump-data, запустить игру, убрать параметр.',
+                           'Steam: right-click the game → Properties → Launch options → add --dump-data, run the game, remove the option.')}</span></p>
+    <p style="margin-top:8px">• ${L('<b>Старые версии (1.1)</b>:','<b>Older versions (1.1)</b>:')}
+    <button class="small" onclick="downloadDumper()">${L('скачать мод-дампер','download the dumper mod')}</button>
+    ${L('— положите его в папку модов, запустите игру до главного меню, выйдите — и загрузите сюда файл',
+        '— put it into the mods folder, run the game to the main menu, quit — then upload')}
+    <kbd>%appdata%\\Factorio\\factorio-current.log</kbd>.</p>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="primary" onclick="$('dumpUp').click()">${L('Загрузить файл (json или log)','Upload file (json or log)')}</button>
+      <input type="file" id="dumpUp" accept=".json,.log" style="display:none" onchange="uploadDump(this)">
+      <span id="dumpStatus" class="hint"></span>
     </div>
-    <div id="catright"><div class="empty">Выберите, что менять — слева категория и объект</div></div>
-  </div>`;
-  $('catSel').onchange=e=>{ S.cat=e.target.value; S.search=''; $('catSearch').value=''; renderProtoList(); };
-  $('catSearch').oninput=e=>{ S.search=e.target.value; renderProtoList(); };
-  renderProtoList();
-  if(S.pendingOpen){ const po=S.pendingOpen; S.pendingOpen=null; openProto(po.cat,po.name,po.target); }
+    <div class="btns"><button onclick="closeModal()">${L('Закрыть','Close')}</button></div>`);
 }
 async function uploadDump(inp){
   const f=inp.files[0]; if(!f) return; inp.value='';
-  const st=$('dumpStatus'); if(st) st.textContent='Читаю файл... ('+Math.round(f.size/1048576)+' МБ)';
+  const st=$('dumpStatus'); if(st) st.textContent=L('Читаю файл...','Reading file...')+' ('+Math.round(f.size/1048576)+' MB)';
   try{
     const text=await f.text();
     let dump;
@@ -757,17 +835,65 @@ async function uploadDump(inp){
         const cat=tabbed.substring(0,t1), name=tabbed.substring(t1+1,t2);
         try{ (dump[cat]=dump[cat]||{})[name]=JSON.parse(tabbed.substring(t2+1)); }catch(e){}
       }
-      if(!Object.keys(dump).length) throw new Error('в логе нет данных дампера — мод-дампер был установлен?');
+      if(!Object.keys(dump).length) throw new Error(L('в логе нет данных дампера — мод-дампер был установлен?','no dumper data in the log — was the dumper mod installed?'));
     } else {
       dump=JSON.parse(text);
     }
-    S.dump=dump;
+    S.dump=dump; S.dumpKind='custom'; S.proto=null;
     idbSet('dump',dump).catch(()=>{});
-    toast('Каталог загружен: '+Object.keys(dump).length+' категорий.');
-    render();
-  }catch(e){ if(st) st.textContent=''; toast('Не удалось загрузить каталог: '+e.message, true); }
+    toast(L('Каталог вашей игры загружен: ','Your game catalog is loaded: ')+Object.keys(dump).length+L(' категорий.',' categories.'));
+    closeModal(); render();
+  }catch(e){ if(st) st.textContent=''; toast(L('Не удалось загрузить каталог: ','Could not load the catalog: ')+e.message, true); }
 }
-function resetDump(){ S.dump=null; idbSet('dump',null).catch(()=>{}); render(); }
+function resetToVanilla(){
+  idbSet('dump',null).catch(()=>{});
+  S.dump=null; S.dumpKind=null; S.proto=null;
+  loadVanilla();
+  toast(L('Вернул встроенный каталог базовой игры.','Switched back to the built-in base-game catalog.'));
+}
+function renderGame(){
+  const c=$('content');
+  if(!S.dump){
+    if(vanillaState==='failed'){
+      c.innerHTML=`<div class="card" style="max-width:680px;margin:30px auto"><h3>${L('Каталог игры','Game catalog')}</h3>
+        <p>${L('Не удалось загрузить встроенный каталог базовой игры (нет сети?). Можно попробовать ещё раз или загрузить каталог своей игры файлом.',
+               'Could not load the built-in base-game catalog (offline?). Try again or upload your own game catalog as a file.')}</p>
+        <div style="margin-top:12px;display:flex;gap:10px">
+          <button class="primary" onclick="vanillaState='idle';renderGame()">${L('Попробовать ещё раз','Try again')}</button>
+          <button onclick="showCatalogModal()">${L('Загрузить свой каталог...','Upload your catalog...')}</button>
+        </div></div>`;
+      return;
+    }
+    if(vanillaState==='idle'){ loadVanilla(); }
+    c.innerHTML=`<div class="card" style="max-width:680px;margin:30px auto"><h3>${L('Каталог игры','Game catalog')}</h3>
+      <p>⏳ ${L('Загружаю встроенный каталог базовой игры (~4 МБ)...','Loading the built-in base-game catalog (~4 MB)...')}</p></div>`;
+    return;
+  }
+  const cats=Object.keys(S.dump).filter(k=>S.dump[k]&&Object.keys(S.dump[k]).length).sort();
+  const copt=cats.map(k=>`<option value="${esc(k)}"${k===S.cat?' selected':''}>${esc(catLabel(k))}</option>`).join('');
+  const srcLabel = S.dumpKind==='custom'
+    ? L('Каталог: ваша игра','Catalog: your game')
+    : L('Каталог: базовая игра (Factorio 1.1)','Catalog: base game (Factorio 1.1)');
+  c.innerHTML=`<div id="catwrap">
+    <div id="catbar">
+      <span class="badge">${srcLabel}</span>
+      <button class="small" onclick="showCatalogModal()">${L('Загрузить каталог своей игры...','Upload your game catalog...')}</button>
+      ${S.dumpKind==='custom'? `<button class="small" onclick="resetToVanilla()">${L('Вернуть базовый каталог','Back to base-game catalog')}</button>`:''}
+    </div>
+    <div id="catcols">
+      <div id="catleft">
+        <select id="catSel">${copt}</select>
+        <input id="catSearch" placeholder="${L('Поиск по названию...','Search by name...')}" value="${esc(S.search)}">
+        <div id="protolist"></div>
+      </div>
+      <div id="catright"><div class="empty">${L('Выберите, что менять — слева категория и объект','Pick what to edit — category and object on the left')}</div></div>
+    </div>
+  </div>`;
+  $('catSel').onchange=e=>{ S.cat=e.target.value; S.search=''; $('catSearch').value=''; renderProtoList(); };
+  $('catSearch').oninput=e=>{ S.search=e.target.value; renderProtoList(); };
+  renderProtoList();
+  if(S.pendingOpen){ const po=S.pendingOpen; S.pendingOpen=null; openProto(po.cat,po.name,po.target); }
+}
 function renderProtoList(){
   const list=$('protolist'); if(!list) return;
   const cat=S.dump[S.cat]||{};
@@ -778,7 +904,7 @@ function renderProtoList(){
     const ru=locName(n);
     return `<div class="proto${S.proto===n?' sel':''}" onclick="openProto('${esc(S.cat)}','${esc(n)}')">
       <div>${esc(ru||n)}</div>${ru?`<div class="ru">${esc(n)}</div>`:''}</div>`;
-  }).join('')+(names.length>300?`<div class="proto sub">...ещё ${names.length-300}, уточните поиск</div>`:'');
+  }).join('')+(names.length>300?`<div class="proto sub">...${L('ещё','more:')} ${names.length-300}, ${L('уточните поиск','narrow the search')}</div>`:'');
 }
 function targetProps(){
   const t=S.target; const M=cur().model;
@@ -798,40 +924,41 @@ function openProto(cat,name,target){
 function setTarget(t){ S.target=t||{kind:'override',category:S.cat,name:S.proto}; renderProtoPanel(); }
 function renderProtoPanel(){
   const right=$('catright'); const proto=(S.dump[S.cat]||{})[S.proto];
-  if(!proto){ right.innerHTML='<div class="empty">Не найдено</div>'; return; }
+  if(!proto){ right.innerHTML='<div class="empty">'+L('Не найдено','Not found')+'</div>'; return; }
   const M=cur().model;
   const ru=locName(S.proto); const t=S.target; const isClone=t.kind==='clone';
   const clones=M.clones.filter(c=>c.category===S.cat&&c.base===S.proto);
-  const cloneBtns=clones.map(c=>`<button class="small${isClone&&t.id===c.id?' primary':''}" onclick='setTarget({kind:"clone",id:"${esc(c.id)}"})'>клон: ${esc(c.ru)}</button>`).join(' ');
+  const cloneBtns=clones.map(c=>`<button class="small${isClone&&t.id===c.id?' primary':''}" onclick='setTarget({kind:"clone",id:"${esc(c.id)}"})'>${L('клон:','clone:')} ${esc(c.ru)}</button>`).join(' ');
   const props=targetProps();
   const chips=props.map((p,i)=>`<div class="propchip"><span class="p">${esc(p.path)}</span> = <b>${esc(p.vtype==='nil'?'nil':p.value)}</b>
      <div style="flex:1"></div><button class="small danger" onclick="removeProp(${i})">✕</button></div>`).join('');
   const hasIcon=proto.icon||proto.icons;
   right.innerHTML=`
     <div class="card"><h3>${esc(ru||S.proto)} <span class="badge">${esc(S.cat)} / ${esc(S.proto)}</span><div class="spacer"></div>
-      ${hasIcon?`<button class="small" onclick="$('iconFile').click()">Заменить иконку (PNG)</button><input type="file" id="iconFile" accept="image/png" style="display:none" onchange="replaceIcon(this)">`:''}
-      <button class="small" onclick="cloneForm()">Создать копию...</button></h3>
+      ${hasIcon?`<button class="small" onclick="$('iconFile').click()">${L('Заменить иконку (PNG)','Replace icon (PNG)')}</button><input type="file" id="iconFile" accept="image/png" style="display:none" onchange="replaceIcon(this)">`:''}
+      <button class="small" onclick="cloneForm()">${L('Создать копию...','Make a copy...')}</button></h3>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
-        <button class="small${!isClone?' primary':''}" onclick='setTarget(null)'>менять оригинал</button>${cloneBtns}</div>
-      <div class="hint">${isClone?'Изменения применяются к вашей копии.':'Изменения применяются к оригиналу в игре.'}
-        Наведите на строку в дереве: ✎ — изменить значение, ∅ — убрать свойство.</div>
+        <button class="small${!isClone?' primary':''}" onclick='setTarget(null)'>${L('менять оригинал','edit the original')}</button>${cloneBtns}</div>
+      <div class="hint">${isClone? L('Изменения применяются к вашей копии.','Changes apply to your copy.') : L('Изменения применяются к оригиналу в игре.','Changes apply to the original in game.')}
+        ${L('Наведите на строку в дереве: ✎ — изменить значение, ∅ — убрать свойство.','Hover a row in the tree: ✎ — edit the value, ∅ — remove the property.')}</div>
       ${chips?`<div style="margin-top:8px">${chips}</div>`:''}
     </div>
     <div class="card"><div class="tree" id="tree"></div></div>`;
   buildTree($('tree'),proto,'');
 }
 function cloneForm(){
-  openModal(`<h3>Копия: ${esc(locName(S.proto)||S.proto)}</h3><div class="formgrid">
-    <label>Название (по-русски)</label><input id="fRu">
-    <label>Название (English)</label><input id="fEn">
-    </div><div class="hint">В игре появится новый объект — копия выбранного. Дальше меняйте её свойства в дереве.</div>
-    <div class="btns"><button onclick="closeModal()">Отмена</button><button class="primary" onclick="cloneSave()">Создать</button></div>`);
+  openModal(`<h3>${L('Копия:','Copy of:')} ${esc(locName(S.proto)||S.proto)}</h3><div class="formgrid">
+    <label>${L('Название (по-русски)','Name (Russian)')}</label><input id="fRu">
+    <label>${L('Название (English)','Name (English)')}</label><input id="fEn">
+    </div><div class="hint">${L('В игре появится новый объект — копия выбранного. Дальше меняйте её свойства в дереве.',
+                                'A new object appears in the game — a copy of the selected one. Then edit its properties in the tree.')}</div>
+    <div class="btns"><button onclick="closeModal()">${L('Отмена','Cancel')}</button><button class="primary" onclick="cloneSave()">${L('Создать','Create')}</button></div>`);
 }
 function cloneSave(){
-  const ru=$('fRu').value.trim(); if(!ru){ toast('Введите название.',true); return; }
-  const en=$('fEn').value.trim();
+  const ru=$('fRu').value.trim(); const en=$('fEn').value.trim();
+  if(!ru&&!en){ toast(L('Введите название.','Enter a name.'),true); return; }
   const id=uniqueId(cur().name.toLowerCase()+'-'+slug(en||ru));
-  cur().model.clones.push({id,category:S.cat,base:S.proto,ru,en,props:[]});
+  cur().model.clones.push({id,category:S.cat,base:S.proto,ru:ru||en,en,props:[]});
   closeModal(); S.target={kind:'clone',id};
   save(renderProtoPanel);
 }
@@ -855,7 +982,7 @@ async function replaceIcon(inp){
   const b64=toB64(buf);
   const img=new Image();
   img.onload=()=>{
-    if(img.naturalWidth!==img.naturalHeight){ toast('Картинка должна быть квадратной (например 64×64).',true); return; }
+    if(img.naturalWidth!==img.naturalHeight){ toast(L('Картинка должна быть квадратной (например 64×64).','The image must be square (e.g. 64×64).'),true); return; }
     const clean=(S.proto+'-icon.png').replace(/[^A-Za-z0-9._-]/g,'-');
     addSprite(clean,b64);
     const path='__'+cur().name+'__/graphics/'+clean;
@@ -863,7 +990,7 @@ async function replaceIcon(inp){
     applyProp('icon_size',img.naturalWidth,'number');
     applyProp('icons',null,'nil');
     applyProp('icon_mipmaps',null,'nil');
-    toast('Иконка заменена — файл добавлен в спрайты мода.');
+    toast(L('Иконка заменена — файл добавлен в спрайты мода.','Icon replaced — the file was added to the mod sprites.'));
   };
   img.src=URL.createObjectURL(f);
   inp.value='';
@@ -892,7 +1019,7 @@ function appendNodes(parent,obj,prefix,depth){
       sum.innerHTML=esc(isArr?('['+(k+1)+']'):k)+(Array.isArray(v)?` <span class="badge">${v.length}</span>`:'')+(staged?' <span class="changedmark">●</span>':'');
       det.appendChild(sum);
       if(editable){
-        const nil=document.createElement('button'); nil.className='small'; nil.textContent='∅'; nil.title='Убрать это свойство (nil)';
+        const nil=document.createElement('button'); nil.className='small'; nil.textContent='∅'; nil.title=L('Убрать это свойство (nil)','Remove this property (nil)');
         nil.style.marginLeft='8px'; nil.onclick=e=>{ e.preventDefault(); e.stopPropagation(); applyProp(path,null,'nil'); };
         sum.appendChild(nil);
       }
@@ -915,14 +1042,14 @@ function leafRow(path,key,val,editable){
   const isStr=typeof shown==='string';
   row.innerHTML=`<span class="k">${esc(key)}</span> = <span class="v${isStr?' str':''}${staged?' changed':''}">${esc(JSON.stringify(shown))}</span>`;
   if(staged){
-    const undo=document.createElement('button'); undo.className='small'; undo.textContent='вернуть';
+    const undo=document.createElement('button'); undo.className='small'; undo.textContent=L('вернуть','revert');
     undo.onclick=()=>removePropByPath(path); row.appendChild(undo);
   }
   if(editable){
     const ed=document.createElement('button'); ed.className='small'; ed.textContent='✎';
     ed.onclick=()=>editLeaf(row,path,staged? staged.value:val);
     row.appendChild(ed);
-    const nil=document.createElement('button'); nil.className='small'; nil.textContent='∅'; nil.title='Убрать (nil)';
+    const nil=document.createElement('button'); nil.className='small'; nil.textContent='∅'; nil.title=L('Убрать (nil)','Remove (nil)');
     nil.onclick=()=>applyProp(path,null,'nil');
     row.appendChild(nil);
   }
@@ -949,7 +1076,7 @@ function editLeaf(row,path,curv){
   ok.onclick=()=>{
     let v,vt;
     if(t==='boolean'){ v=inp.value==='true'; vt='boolean'; }
-    else if(t==='number'){ v=parseFloat(inp.value); if(isNaN(v)){ toast('Введите число.',true); return; } vt='number'; }
+    else if(t==='number'){ v=parseFloat(inp.value); if(isNaN(v)){ toast(L('Введите число.','Enter a number.'),true); return; } vt='number'; }
     else { v=inp.value; vt='string'; }
     applyProp(path,v,vt);
   };
@@ -967,34 +1094,32 @@ function makeSpriteDatalist(){
 /* ============================================================ вкладка: спрайты */
 function renderSprites(){
   const c=$('content'); const p=cur(); const files=p.sprites||[];
-  c.innerHTML=`<div class="card"><h3>Спрайты мода <div class="spacer"></div>
-      <button class="primary small" onclick="$('spriteUp').click()">+ Загрузить PNG</button>
+  c.innerHTML=`<div class="card"><h3>${L('Спрайты мода','Mod sprites')} <div class="spacer"></div>
+      <button class="primary small" onclick="$('spriteUp').click()">+ ${L('Загрузить PNG','Upload PNG')}</button>
       <input type="file" id="spriteUp" accept="image/png" multiple style="display:none" onchange="uploadSprites(this)"></h3>
-    <div class="hint">Картинки попадут в zip мода (папка graphics). Скопируйте путь и подставьте его в любое
-      свойство <b>filename</b> или <b>icon</b> на вкладке «Изменить игру» — так меняется внешний вид чего угодно.
-      Иконки — квадратные (обычно 64×64); для них есть кнопка «Заменить иконку» прямо в каталоге.
-      Спрайты анимаций должны совпадать по раскадровке с оригиналом.</div></div>
+    <div class="hint">${L('Картинки попадут в zip мода (папка graphics). Скопируйте путь и подставьте его в любое свойство <b>filename</b> или <b>icon</b> на вкладке «Изменить игру» — так меняется внешний вид чего угодно. Иконки — квадратные (обычно 64×64); для них есть кнопка «Заменить иконку» прямо в каталоге. Спрайты анимаций должны совпадать по раскадровке с оригиналом.',
+      'Images go into the mod zip (graphics folder). Copy the path and paste it into any <b>filename</b> or <b>icon</b> property on the "Edit the game" tab — that is how you reskin anything. Icons are square (usually 64×64); there is a "Replace icon" button right in the catalog. Animation sheets must match the original frame layout.')}</div></div>
     <div class="spritegrid">${files.map((f,i)=>`
       <div class="spritecard"><img src="data:image/png;base64,${f.b64}">
         <div class="p">__${esc(p.name)}__/graphics/${esc(f.file)}</div>
-        <button class="small" onclick="copySpritePath(${i})">Копировать путь</button>
+        <button class="small" onclick="copySpritePath(${i})">${L('Копировать путь','Copy path')}</button>
         <button class="small danger" onclick="delSprite(${i})">✕</button>
-      </div>`).join('')||'<div class="hint" style="grid-column:1/-1">Пока нет спрайтов.</div>'}
+      </div>`).join('')||'<div class="hint" style="grid-column:1/-1">'+L('Пока нет спрайтов.','No sprites yet.')+'</div>'}
     </div>`;
 }
 function copySpritePath(i){
   const p=cur(); const f=p.sprites[i];
   navigator.clipboard.writeText('__'+p.name+'__/graphics/'+f.file);
-  toast('Путь скопирован.');
+  toast(L('Путь скопирован.','Path copied.'));
 }
 function delSprite(i){ cur().sprites.splice(i,1); save(renderSprites); }
 async function uploadSprites(inp){
   for(const f of inp.files){
-    if(f.size>8*1048576){ toast(f.name+': файл больше 8 МБ — браузер не сможет хранить такой проект.', true); continue; }
+    if(f.size>8*1048576){ toast(f.name+': '+L('файл больше 8 МБ — браузер не сможет хранить такой проект.','file is over 8 MB — the browser cannot store such a project.'), true); continue; }
     const buf=await f.arrayBuffer();
     addSprite(f.name.replace(/[^A-Za-z0-9._-]/g,'-'), toB64(buf));
   }
-  inp.value=''; save(renderSprites); toast('Загружено.');
+  inp.value=''; save(renderSprites); toast(L('Загружено.','Uploaded.'));
 }
 
 /* ============================================================ самопроверка (?selftest=1) */
@@ -1023,8 +1148,8 @@ function runSelftest(){
 (async function(){
   S.projects=loadProjects();
   if(S.projects.length) S.sel=S.projects[0].id;
-  render();
-  try{ const d=await idbGet('dump'); if(d){ S.dump=d; renderDumpChip(); if(S.tab==='game') renderMod(); } }catch(e){}
+  applyLang();
+  try{ const d=await idbGet('dump'); if(d){ S.dump=d; S.dumpKind='custom'; renderDumpChip(); if(S.tab==='game'&&cur()) renderMod(); } }catch(e){}
   if(location.search.includes('selftest=1')) runSelftest();
 })();
 </script>
