@@ -358,6 +358,10 @@ function fmtVal(p){
   if(p.vtype==='number') return luaNum(p.value);
   if(p.vtype==='boolean') return p.value? 'true':'false';
   if(p.vtype==='nil') return 'nil';
+  if(p.vtype==='ings'||p.vtype==='results'){
+    const parts=(p.value||[]).map(g=>'{type="'+(g.ftype==='fluid'?'fluid':'item')+'", name="'+escLua(g.item)+'", amount='+luaNum(g.count)+'}');
+    return '{ '+parts.join(', ')+' }';
+  }
   return '"'+escLua(p.value)+'"';
 }
 function ing11(g){ return '{"'+g.item+'", '+luaNum(g.count)+'}'; }
@@ -922,7 +926,7 @@ function targetProps(){
   return cl? cl.props:[];
 }
 function openProto(cat,name,target){
-  S.proto=name; S.cat=cat; S.advOpen=false;
+  S.proto=name; S.cat=cat; S.advOpen=false; S.recipeDraft=null;
   S.target=target||{kind:'override',category:cat,name:name};
   renderProtoList(); renderProtoPanel();
 }
@@ -1033,6 +1037,117 @@ function friendlyChanged(i,inp){
   }
   applyProp(r.path, inp.value, 'string');
 }
+
+/* ---------- редактор состава существующих рецептов ---------- */
+let FLUIDSET=new Set(), KNOWNNAMES=new Set(), dlTag=null;
+function ensureItemDatalist(){
+  if(dlTag===S.dump && $('fmwItemsDL')) return;
+  dlTag=S.dump;
+  FLUIDSET=new Set(Object.keys((S.dump&&S.dump.fluid)||{}));
+  KNOWNNAMES=new Set();
+  let opts='';
+  const cats=['item','ammo','capsule','gun','module','tool','armor','repair-tool','mining-tool','item-with-entity-data','rail-planner','fluid'];
+  for(const c of cats){
+    const g=S.dump&&S.dump[c]; if(!g) continue;
+    for(const n of Object.keys(g)){
+      KNOWNNAMES.add(n);
+      const ru=locName(n);
+      opts+=`<option value="${esc(n)}">${ru?esc(ru):''}</option>`;
+    }
+  }
+  let dl=$('fmwItemsDL');
+  if(!dl){ dl=document.createElement('datalist'); dl.id='fmwItemsDL'; document.body.appendChild(dl); }
+  dl.innerHTML=opts;
+}
+function recipeParts(proto){
+  const src=proto.normal||proto;
+  const norm=g=> Array.isArray(g)? {item:g[0], count:(g[1]!=null?g[1]:1), ftype:'item'}
+                                 : {item:g.name, count:(g.amount!=null?g.amount:1), ftype:g.type||'item'};
+  const ings=(src.ingredients||[]).map(norm);
+  let results;
+  if(src.results) results=src.results.map(norm);
+  else if(src.result) results=[{item:src.result, count:(src.result_count!=null?src.result_count:1), ftype:'item'}];
+  else results=[];
+  return {ings, results};
+}
+function ensureRecipeDraft(proto){
+  if(S.recipeDraft) return;
+  const parsed=recipeParts(proto);
+  const si=findProp('ingredients'), sr=findProp('results');
+  S.recipeDraft={
+    ings: JSON.parse(JSON.stringify(si&&si.vtype==='ings'? si.value : parsed.ings)),
+    results: JSON.parse(JSON.stringify(sr&&sr.vtype==='results'? sr.value : parsed.results))
+  };
+}
+function buildRecipeCard(proto){
+  ensureItemDatalist();
+  ensureRecipeDraft(proto);
+  const d=S.recipeDraft;
+  const staged=!!(findProp('ingredients')||findProp('results'));
+  const special=((proto.normal||proto).results||[]).some(r=>!Array.isArray(r)&&(r.probability!=null||r.amount_min!=null));
+  const row=(g,i,kind)=>{
+    const ruN=locName(g.item);
+    return `<div class="frow">
+      <input list="fmwItemsDL" value="${esc(g.item)}" style="width:250px" onchange="rcpChanged('${kind}',${i},'item',this)">
+      <input type="number" min="0" step="any" value="${g.count}" style="width:90px" onchange="rcpChanged('${kind}',${i},'count',this)">
+      <span class="keynote">${esc(ruN||'')}${g.ftype==='fluid'? ' · '+L('жидкость','fluid'):''}</span>
+      <div style="flex:1"></div><button class="small danger" onclick="rcpDel('${kind}',${i})">✕</button></div>`;
+  };
+  return `<div class="card"><h3>${L('Состав рецепта','Recipe contents')}${staged?' <span class="changedmark">●</span>':''}<div class="spacer"></div>
+      ${staged?`<button class="small" onclick="resetRecipe()">${L('Сбросить изменения','Reset changes')}</button>`:''}
+      <button class="small primary" onclick="saveRecipe()">${L('Сохранить рецепт','Save recipe')}</button></h3>
+    <div class="hint" style="margin-top:0">${L('Ингредиенты (что тратится):','Ingredients (what is consumed):')}</div>
+    ${d.ings.map((g,i)=>row(g,i,'ings')).join('')}
+    <div style="margin:4px 0 8px"><button class="small" onclick="rcpAdd('ings')">+ ${L('ингредиент','ingredient')}</button></div>
+    <div class="hint">${L('Результаты (что получается):','Results (what is produced):')}</div>
+    ${d.results.map((g,i)=>row(g,i,'results')).join('')}
+    <div style="margin:4px 0 8px"><button class="small" onclick="rcpAdd('results')">+ ${L('результат','result')}</button></div>
+    ${special?`<div class="hint">⚠ ${L('У этого рецепта вероятностные результаты — сохранение упростит их до фиксированных количеств.','This recipe has probabilistic results — saving will simplify them to fixed amounts.')}</div>`:''}
+    <div class="hint">${L('Начните вводить название — появятся подсказки. Изменения попадут в мод после «Сохранить рецепт». Время крафта — в «Основных свойствах» ниже.','Start typing a name for suggestions. Changes are stored after "Save recipe". Craft time is under Main properties below.')}</div>
+  </div>`;
+}
+function rcpChanged(kind,i,field,inp){
+  const g=S.recipeDraft&&S.recipeDraft[kind]&&S.recipeDraft[kind][i]; if(!g) return;
+  if(field==='item'){ g.item=inp.value.trim(); g.ftype=FLUIDSET.has(g.item)?'fluid':'item'; }
+  else { const v=parseFloat(inp.value); if(!isNaN(v)&&v>0) g.count=v; }
+}
+function rcpAdd(kind){
+  const arr=S.recipeDraft[kind];
+  if(arr.length>=8){ toast(L('Не больше восьми.','Eight at most.'),true); return; }
+  arr.push({item:'iron-plate',count:1,ftype:'item'});
+  renderProtoPanel();
+}
+function rcpDel(kind,i){ S.recipeDraft[kind].splice(i,1); renderProtoPanel(); }
+function saveRecipe(){
+  const d=S.recipeDraft; const proto=(S.dump[S.cat]||{})[S.proto];
+  if(!d) return;
+  for(const kind of ['ings','results']) for(const g of d[kind]){
+    if(!g.item){ toast(L('Заполните все названия.','Fill in all names.'),true); return; }
+    if(!(g.count>0)){ toast(L('Количество должно быть больше нуля.','Amounts must be positive.'),true); return; }
+  }
+  if(!d.ings.length||!d.results.length){ toast(L('Нужен хотя бы один ингредиент и один результат.','Need at least one ingredient and one result.'),true); return; }
+  for(const g of [...d.ings,...d.results]) g.ftype=FLUIDSET.has(g.item)?'fluid':'item';
+  const unknown=[...d.ings,...d.results].filter(g=>!KNOWNNAMES.has(g.item)).map(g=>g.item);
+  if(unknown.length) toast(L('Внимание, не нашёл в каталоге: ','Warning, not found in the catalog: ')+unknown.join(', '), true);
+  const up=(path,value,vtype)=>{ const ps=targetProps(); const ex=ps.find(p=>p.path===path);
+    if(ex){ ex.value=value; ex.vtype=vtype; } else ps.push({path,value,vtype}); };
+  up('ingredients', JSON.parse(JSON.stringify(d.ings)), 'ings');
+  up('results', JSON.parse(JSON.stringify(d.results)), 'results');
+  up('result', null, 'nil');
+  up('result_count', null, 'nil');
+  if(proto&&proto.normal!==undefined) up('normal', null, 'nil');
+  if(proto&&proto.expensive!==undefined) up('expensive', null, 'nil');
+  cleanupSave();
+  toast(L('Рецепт сохранён в мод.','Recipe saved to the mod.'));
+}
+function resetRecipe(){
+  const ps=targetProps();
+  for(const path of ['ingredients','results','result','result_count','normal','expensive']){
+    const i=ps.findIndex(p=>p.path===path); if(i>=0) ps.splice(i,1);
+  }
+  S.recipeDraft=null;
+  cleanupSave();
+}
 function setTarget(t){ S.target=t||{kind:'override',category:S.cat,name:S.proto}; renderProtoPanel(); }
 function renderProtoPanel(){
   const right=$('catright'); const proto=(S.dump[S.cat]||{})[S.proto];
@@ -1042,7 +1157,8 @@ function renderProtoPanel(){
   const clones=M.clones.filter(c=>c.category===S.cat&&c.base===S.proto);
   const cloneBtns=clones.map(c=>`<button class="small${isClone&&t.id===c.id?' primary':''}" onclick='setTarget({kind:"clone",id:"${esc(c.id)}"})'>${L('клон:','clone:')} ${esc(c.ru)}</button>`).join(' ');
   const props=targetProps();
-  const chips=props.map((p,i)=>`<div class="propchip"><span class="p">${esc(p.path)}</span> = <b>${esc(p.vtype==='nil'?'nil':p.value)}</b>
+  const chipVal=p=> p.vtype==='nil'? 'nil' : (p.vtype==='ings'||p.vtype==='results')? (p.value||[]).map(g=>g.item+'×'+g.count).join(' + ') : p.value;
+  const chips=props.map((p,i)=>`<div class="propchip"><span class="p">${esc(p.path)}</span> = <b>${esc(chipVal(p))}</b>
      <div style="flex:1"></div><button class="small danger" onclick="removeProp(${i})">✕</button></div>`).join('');
   const hasIcon=proto.icon||proto.icons;
 
@@ -1074,6 +1190,9 @@ function renderProtoPanel(){
        <div class="hint">${L('Изменили значение — оно сразу сохраняется в мод. Оранжевая точка — свойство изменено.','Change a value and it is saved to the mod immediately. Orange dot = changed.')}</div></div>`
     : `<div class="card"><div class="hint">${L('Для этого типа пока нет упрощённых настроек — откройте «Все свойства» ниже.','No simplified settings for this type yet — open "All properties" below.')}</div></div>`;
 
+  let recipeCard='';
+  if(S.cat==='recipe') recipeCard=buildRecipeCard(proto);
+
   right.innerHTML=`
     <div class="card"><h3>${esc(ru||S.proto)} <span class="badge">${esc(S.cat)} / ${esc(S.proto)}</span><div class="spacer"></div>
       ${hasIcon?`<button class="small" onclick="$('iconFile').click()">${L('Заменить иконку (PNG)','Replace icon (PNG)')}</button><input type="file" id="iconFile" accept="image/png" style="display:none" onchange="replaceIcon(this)">`:''}
@@ -1084,6 +1203,7 @@ function renderProtoPanel(){
         ${L('Главные характеристики — в карточке ниже; всё остальное — в «расширенном режиме».','Key stats are in the card below; everything else is under advanced mode.')}</div>
       ${chips?`<div style="margin-top:8px">${chips}</div>`:''}
     </div>
+    ${recipeCard}
     ${friendlyCard}
     <div class="card"><h3>${L('Все свойства (расширенный режим)','All properties (advanced mode)')} <div class="spacer"></div>
       <button class="small" id="advBtn">${S.advOpen? L('Скрыть','Hide'):L('Показать','Show')}</button></h3>
@@ -1283,6 +1403,9 @@ function runSelftest(){
       props:[{path:'max_health',value:50000,vtype:'number'}]});
     p.model.overrides.push({category:'ammo-turret',name:'gun-turret',
       props:[{path:'max_health',value:9999,vtype:'number'},{path:'icons',value:null,vtype:'nil'}]});
+    p.model.overrides.push({category:'recipe',name:'iron-gear-wheel',
+      props:[{path:'ingredients',value:[{item:'iron-plate',count:4,ftype:'item'},{item:'water',count:10,ftype:'fluid'}],vtype:'ings'},
+             {path:'normal',value:null,vtype:'nil'}]});
     p.model.tweaks={run:150,inv:10,stack:2};
     const zip=buildModZip(p);
     out.push('<pre id="st'+fver.replace('.','')+'">'+bytesToB64(zip)+'</pre>');
