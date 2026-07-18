@@ -480,7 +480,7 @@ function genDataLua(p){
   }
   for(const rc of M.recipes){
     const ings = rc.ingredients.map(v2?ing20:ing11).join(', ');
-    out.push('data:extend({{','  type = "recipe",','  name = "'+rc.id+'",','  enabled = true,',
+    out.push('data:extend({{','  type = "recipe",','  name = "'+rc.id+'",','  enabled = '+(rc.enabled===false?'false':'true')+',',
       '  energy_required = '+luaNum(rc.time)+',','  ingredients = { '+ings+' },');
     if(v2) out.push('  results = { {type="item", name="'+rc.result+'", amount='+luaNum(rc.count)+'} }');
     else out.push('  result = "'+rc.result+'",','  result_count = '+luaNum(rc.count));
@@ -765,7 +765,7 @@ function renderContent(){
      <div class="sub">${x.count||100} × ${x.time||30} ${L('сек','s')}; ${L('открывает рецептов:','unlocks recipes:')} ${(x.recipes||[]).length}</div></div>
      <button class="small" onclick="techForm(${i})">${L('Изменить','Edit')}</button><button class="small danger" onclick="delEntry('techs',${i})">✕</button></div>`));
   M.recipes.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">${L('рецепт','recipe')}</span><div class="grow">${esc(labelOf(x.result))} ×${x.count}
-     <div class="sub">${L('из:','from:')} ${x.ingredients.map(g=>esc(labelOf(g.item))+' ×'+g.count).join(' + ')}; ${x.time} ${L('сек','s')}</div></div>
+     <div class="sub">${L('из:','from:')} ${x.ingredients.map(g=>esc(labelOf(g.item))+' ×'+g.count).join(' + ')}; ${x.time} ${L('сек','s')}${x.enabled===false?' · '+L('открывается исследованием','unlocked by research'):''}</div></div>
      <button class="small" onclick="recipeForm(${i})">${L('Изменить','Edit')}</button><button class="small danger" onclick="delEntry('recipes',${i})">✕</button></div>`));
   M.clones.forEach((x,i)=>rows.push(`<div class="row"><span class="badge">${L('клон','clone')}</span><div class="grow">${esc(x.ru)}
      <div class="sub">${L('копия','copy of')} ${esc(locName(x.base)||x.base)} (${esc(x.category)}), ${L('изменений:','changes:')} ${x.props.length}</div></div>
@@ -938,8 +938,8 @@ function techForm(i){
     <label>${L('Циклов исследования','Research cycles')}</label><input id="fCount" type="number" min="1" value="${x?.count||100}" style="width:110px">
     <label>${L('Время цикла (сек)','Cycle time (s)')}</label><input id="fTime" type="number" min="1" step="any" value="${x?.time||30}" style="width:110px">
     ${packRows}${preRows}${urRows}
-    </div><div class="hint">${L('Совет: чтобы рецепт открывался этим исследованием, у рецепта снимите галочку «Доступен с начала игры» (для своих рецептов это пока не настраивается — они доступны сразу; исследование лучше использовать для открытия изменённых рецептов игры).',
-      'Tip: for a recipe to be unlocked by this tech, the recipe must not be enabled from start.')}</div>
+    </div><div class="hint">${L('Совет: чтобы рецепт открывался этим исследованием, у него должна быть снята галочка «Доступен с начала игры» — для своих рецептов она есть в форме рецепта.',
+      'Tip: for a recipe to be unlocked by this tech, its "Enabled from start" checkbox must be off — your own recipes have it in the recipe form.')}</div>
     <div class="btns"><button onclick="closeModal()">${L('Отмена','Cancel')}</button><button class="primary" onclick="techSave(${i??-1})">${L('Сохранить','Save')}</button></div>`);
 }
 function techSave(i){
@@ -970,6 +970,8 @@ function recipeForm(i){
     <label>${L('Что изготавливается','What is crafted')}</label><select id="fRes">${choiceOptions(false, x?.result)}</select>
     <label>${L('Сколько штук','How many')}</label><input id="fCount" type="number" min="1" max="1000" value="${x?.count||1}">
     <label>${L('Время (сек)','Time (s)')}</label><input id="fTime" type="number" min="0.1" max="600" step="0.5" value="${x?.time||1}">
+    <label>${L('Доступен с начала игры','Enabled from start')}</label><div><input id="fEnabled" type="checkbox" ${x?.enabled===false?'':'checked'}>
+      <span class="hint" style="margin:0 0 0 8px">${L('снимите — и рецепт откроется только исследованием','uncheck — and only a research unlocks it')}</span></div>
     ${ingHtml}</div>
     <div class="btns"><button onclick="closeModal()">${L('Отмена','Cancel')}</button><button class="primary" onclick="recipeSave(${i??-1})">${L('Сохранить','Save')}</button></div>`);
 }
@@ -981,7 +983,8 @@ function recipeSave(i){
   if(new Set(ings.map(g=>g.item)).size!==ings.length){ toast(L('Составляющие не должны повторяться.','Ingredients must not repeat.'),true); return; }
   const res=$('fRes').value;
   const obj={ id:i>=0? M.recipes[i].id : uniqueId(cur().name.toLowerCase()+'-r-'+slug(labelOf(res))),
-    result:res, count:+$('fCount').value||1, time:+$('fTime').value||1, ingredients:ings };
+    result:res, count:+$('fCount').value||1, time:+$('fTime').value||1, ingredients:ings,
+    enabled: $('fEnabled').checked };
   if(i>=0) M.recipes[i]=obj; else M.recipes.push(obj);
   closeModal(); save(renderContent);
 }
@@ -1757,7 +1760,7 @@ function runSelftest(){
     p.model.techs.push({id:'selftest-mod-teh',ru:'Тайная наука',en:'Secret science',base:'automation',count:150,time:45,
       packs:[{item:'automation-science-pack',count:1},{item:'logistic-science-pack',count:2}],
       prereqs:['automation'],recipes:['selftest-mod-r-plita']});
-    p.model.recipes.push({id:'selftest-mod-r-plita',result:'selftest-mod-plita',count:2,time:1.5,
+    p.model.recipes.push({id:'selftest-mod-r-plita',result:'selftest-mod-plita',count:2,time:1.5,enabled:false,
       ingredients:[{item:'iron-plate',count:5},{item:'coal',count:1}]});
     p.model.clones.push({id:'selftest-mod-boss',category:'unit',base:'big-biter',ru:'Босс',en:'Boss',
       props:[{path:'max_health',value:50000,vtype:'number'}]});
